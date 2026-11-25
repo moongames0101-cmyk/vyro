@@ -1,8 +1,8 @@
 /* VYRO v1.0.5 Obsidian Prism — Auth, Onboarding & Download Portal */
 .auth-page {
   position: relative;
-  height: 100dvh;
-  width: 100vw;
+  height: 100%;
+  width: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   background: var(--bg-void);
@@ -648,6 +648,9 @@
 @media (max-width: 920px) {
   .auth-shell {
     grid-template-columns: 1fr;
+    align-items: start;
+    align-content: start;
+    flex: initial;
     padding: 20px 16px 40px;
     gap: 24px;
   }

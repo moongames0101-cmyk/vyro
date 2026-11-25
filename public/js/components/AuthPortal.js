@@ -765,6 +765,15 @@ async function renderDownloadView(container) {
         <div class="auth-nav-actions">
           <button class="btn btn-secondary btn-sm" id="dl-login-btn">Log In</button>
           <button class="btn btn-primary btn-sm" id="dl-signup-btn">Sign Up</button>
+          ${
+            window.vyroDesktop
+              ? `<div class="tb-win-group">
+                  <button class="tb-win-btn" id="dl-win-min" title="Minimize">${ICONS.winMin}</button>
+                  <button class="tb-win-btn" id="dl-win-max" title="Maximize / Restore">${ICONS.winMax}</button>
+                  <button class="tb-win-btn close" id="dl-win-close" title="Close">${ICONS.winClose}</button>
+                </div>`
+              : ''
+          }
         </div>
       </header>
       <div class="download-page-wrap">
@@ -788,6 +797,10 @@ async function renderDownloadView(container) {
     </div>
   `;
 
+  container.querySelector('#dl-win-min')?.addEventListener('click', (e) => { e.stopPropagation(); window.vyroDesktop?.minimize(); });
+  container.querySelector('#dl-win-max')?.addEventListener('click', (e) => { e.stopPropagation(); window.vyroDesktop?.maximize(); });
+  container.querySelector('#dl-win-close')?.addEventListener('click', (e) => { e.stopPropagation(); window.vyroDesktop?.close(); });
+
   container.querySelector('#dl-back-home').onclick = () => {
     setState({ authTab: 'login' });
     location.hash = '#/login';
@@ -806,22 +819,24 @@ async function renderDownloadView(container) {
     networkInfoCache = { net, upd };
     const cards = container.querySelector('#dl-cards-root');
     const mobileUrl = net.lanUrls?.[0]?.url || location.origin;
+    const formatExeLabel = (name) =>
+      name.toLowerCase().includes('portable') ? `Portable .exe (v${escapeHtml(net.version)})` : `Windows Setup .exe (v${escapeHtml(net.version)})`;
     const localExeSet = new Set(net.localExes || []);
     const localExeButtons = (net.localExes || [])
-      .map((exe) => `<a class="btn btn-primary" href="/downloads/${encodeURIComponent(exe)}" download>${ICONS.download} Download ${escapeHtml(exe)}</a>`)
+      .map((exe) => `<a class="btn btn-primary" href="/downloads/${encodeURIComponent(exe)}" download title="${escapeHtml(exe)}">${ICONS.download} ${formatExeLabel(exe)}</a>`)
       .join('');
     const ghExeButtons = (upd.exeAssets || [])
       .filter((a) => !localExeSet.has(a.name))
-      .map((a) => `<a class="btn btn-primary" href="${escapeHtml(a.downloadUrl)}" target="_blank" rel="noopener">${ICONS.download} ${escapeHtml(a.name)}</a>`)
+      .map((a) => `<a class="btn btn-primary" href="${escapeHtml(a.downloadUrl)}" target="_blank" rel="noopener" title="${escapeHtml(a.name)}">${ICONS.download} ${formatExeLabel(a.name)}</a>`)
       .join('');
 
     const localApkSet = new Set(net.localApks || []);
     const localApkButtons = (net.localApks || [])
-      .map((apk) => `<a class="btn btn-primary" href="/downloads/${encodeURIComponent(apk)}" download>${ICONS.download} Download ${escapeHtml(apk)} (Android)</a>`)
+      .map((apk) => `<a class="btn btn-primary" href="/downloads/${encodeURIComponent(apk)}" download title="${escapeHtml(apk)}">${ICONS.download} Android APK (v${escapeHtml(net.version)})</a>`)
       .join('');
     const ghApkButtons = (upd.apkAssets || [])
       .filter((a) => !localApkSet.has(a.name))
-      .map((a) => `<a class="btn btn-primary" href="${escapeHtml(a.downloadUrl)}" target="_blank" rel="noopener">${ICONS.download} Download ${escapeHtml(a.name)} (Android APK)</a>`)
+      .map((a) => `<a class="btn btn-primary" href="${escapeHtml(a.downloadUrl)}" target="_blank" rel="noopener" title="${escapeHtml(a.name)}">${ICONS.download} Android APK (GitHub)</a>`)
       .join('');
 
     cards.innerHTML = `

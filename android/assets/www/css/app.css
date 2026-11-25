@@ -2,8 +2,8 @@
 .app-shell {
   position: fixed;
   inset: 0;
-  height: 100dvh;
-  width: 100vw;
+  height: 100%;
+  width: 100%;
   overflow: hidden;
   display: grid;
   grid-template-rows: 50px minmax(0, 1fr);

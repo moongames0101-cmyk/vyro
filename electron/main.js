@@ -12,6 +12,8 @@ let tray = null;
 let vyroServer = null;
 let serverUrl = '';
 let isQuitting = false;
+let userUnmaximized = false;
+let programmaticChange = false;
 let autoUpdater = null;
 
 try {
@@ -44,14 +46,54 @@ async function startEmbeddedServer() {
   }
 }
 
+function getActiveDisplay() {
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      return screen.getDisplayMatching(mainWindow.getBounds());
+    }
+    return screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+  } catch {
+    return screen.getPrimaryDisplay();
+  }
+}
+
+function ensureWindowExpanded() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  if (userUnmaximized || mainWindow.isFullScreen()) return;
+
+  mainWindow.maximize();
+
+  // Verify shortly after DWM transition in case frameless maximize was clipped or skipped
+  setTimeout(() => {
+    if (!mainWindow || mainWindow.isDestroyed() || userUnmaximized || mainWindow.isFullScreen()) return;
+    if (!mainWindow.isMaximized()) {
+      mainWindow.maximize();
+    }
+    const wa = getActiveDisplay().workArea;
+    const content = mainWindow.getContentBounds();
+    if (Math.abs(content.width - wa.width) > 4 || Math.abs(content.height - wa.height) > 4) {
+      programmaticChange = true;
+      mainWindow.setBounds(wa);
+      mainWindow.maximize();
+      setTimeout(() => { programmaticChange = false; }, 150);
+    }
+  }, 120);
+}
+
 function createWindow() {
-  const primary = screen.getPrimaryDisplay();
-  const { x, y, width, height } = primary.workArea;
+  const display = getActiveDisplay();
+  const wa = display.workArea;
+  const normW = Math.min(wa.width, 1280, Math.max(960, Math.round(wa.width * 0.85)));
+  const normH = Math.min(wa.height, 820, Math.max(640, Math.round(wa.height * 0.85)));
+  const normX = Math.round(wa.x + (wa.width - normW) / 2);
+  const normY = Math.round(wa.y + (wa.height - normH) / 2);
+
   mainWindow = new BrowserWindow({
-    x,
-    y,
-    width: width || 1440,
-    height: height || 900,
+    x: normX,
+    y: normY,
+    width: normW,
+    height: normH,
     minWidth: 390,
     minHeight: 620,
     title: 'VYRO',
@@ -59,7 +101,7 @@ function createWindow() {
     frame: false,
     show: false,
     autoHideMenuBar: true,
-    backgroundColor: '#06060C',
+    backgroundColor: '#04040A',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -69,8 +111,36 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.webContents.setZoomFactor(1);
-    mainWindow.show();
     mainWindow.maximize();
+    mainWindow.show();
+    ensureWindowExpanded();
+  });
+
+  mainWindow.on('maximize', () => {
+    userUnmaximized = false;
+  });
+
+  mainWindow.on('unmaximize', () => {
+    if (!programmaticChange && !mainWindow.isFullScreen()) {
+      userUnmaximized = true;
+    }
+  });
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow.webContents.setZoomFactor(1);
+  });
+
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && input.key === 'F11') {
+      event.preventDefault();
+      mainWindow.setFullScreen(!mainWindow.isFullScreen());
+    }
+  });
+
+  mainWindow.on('leave-full-screen', () => {
+    if (!userUnmaximized) {
+      ensureWindowExpanded();
+    }
   });
 
   mainWindow.loadURL(serverUrl);
@@ -93,15 +163,17 @@ function createTray() {
     const img = nativeImage.createFromPath(trayPngPath).resize({ width: 16, height: 16 });
     tray = new Tray(img);
     tray.setToolTip('VYRO — Where Servers Meet Streaks');
+    const restoreMainWindow = () => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      if (!userUnmaximized) ensureWindowExpanded();
+      mainWindow.focus();
+    };
     const menu = Menu.buildFromTemplate([
       {
         label: 'Open VYRO',
-        click: () => {
-          if (mainWindow) {
-            mainWindow.show();
-            mainWindow.focus();
-          }
-        }
+        click: restoreMainWindow
       },
       {
         label: 'Check for GitHub Updates',
@@ -117,12 +189,7 @@ function createTray() {
       }
     ]);
     tray.setContextMenu(menu);
-    tray.on('double-click', () => {
-      if (mainWindow) {
-        mainWindow.show();
-        mainWindow.focus();
-      }
-    });
+    tray.on('double-click', restoreMainWindow);
   } catch {
     // Tray optional
   }
@@ -180,10 +247,10 @@ if (!gotLock) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    if (mainWindow) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) mainWindow.restore();
-      if (!mainWindow.isMaximized()) mainWindow.maximize();
       mainWindow.show();
+      if (!userUnmaximized) ensureWindowExpanded();
       mainWindow.focus();
     }
   });
@@ -203,15 +270,39 @@ if (!gotLock) {
     createTray();
     setupAutoUpdater();
 
+    const refitMaximizedWindow = () => {
+      if (mainWindow && !mainWindow.isDestroyed() && !userUnmaximized && !mainWindow.isFullScreen()) {
+        ensureWindowExpanded();
+      }
+    };
+    screen.on('display-metrics-changed', refitMaximizedWindow);
+    screen.on('display-added', refitMaximizedWindow);
+    screen.on('display-removed', refitMaximizedWindow);
+
     setTimeout(() => triggerUpdateCheck(false), 3500);
   });
 }
 
 ipcMain.on('vyro:win-min', () => mainWindow?.minimize());
 ipcMain.on('vyro:win-max', () => {
-  if (!mainWindow) return;
-  if (mainWindow.isMaximized()) mainWindow.unmaximize();
-  else mainWindow.maximize();
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isFullScreen()) {
+    mainWindow.setFullScreen(false);
+    userUnmaximized = false;
+    ensureWindowExpanded();
+    return;
+  }
+  if (mainWindow.isMaximized()) {
+    userUnmaximized = true;
+    mainWindow.unmaximize();
+  } else {
+    userUnmaximized = false;
+    ensureWindowExpanded();
+  }
+});
+ipcMain.on('vyro:win-fullscreen', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.setFullScreen(!mainWindow.isFullScreen());
 });
 ipcMain.on('vyro:win-close', () => mainWindow?.close());
 ipcMain.on('vyro:check-updates', () => triggerUpdateCheck(true));
