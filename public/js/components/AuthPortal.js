@@ -73,15 +73,6 @@ export async function mountAuthPortal(container, onSignedIn) {
     <div class="auth-page">
       <header class="auth-topbar">
         <div class="auth-brand" id="auth-logo-home">
-          ${
-            window.vyroDesktop
-              ? `<div class="titlebar-dots" style="margin-right:8px;" id="auth-win-dots">
-                  <span class="win-dot red" id="auth-win-close" title="Close"></span>
-                  <span class="win-dot yellow" id="auth-win-min" title="Minimize"></span>
-                  <span class="win-dot green" id="auth-win-max" title="Maximize"></span>
-                </div>`
-              : ''
-          }
           <img src="/assets/icon-192.png" alt="VYRO" />
           <div>
             <div class="auth-brand-title">VYRO</div>
@@ -91,6 +82,15 @@ export async function mountAuthPortal(container, onSignedIn) {
           <button class="btn btn-ghost btn-sm" id="nav-login-btn">Log In</button>
           <button class="btn btn-secondary btn-sm" id="nav-signup-btn">Sign Up</button>
           <button class="btn btn-primary btn-sm" id="nav-download-btn">${ICONS.download} Get .exe &amp; Mobile</button>
+          ${
+            window.vyroDesktop
+              ? `<div class="tb-win-group">
+                  <button class="tb-win-btn" id="auth-win-min" title="Minimize">${ICONS.winMin}</button>
+                  <button class="tb-win-btn" id="auth-win-max" title="Maximize / Restore">${ICONS.winMax}</button>
+                  <button class="tb-win-btn close" id="auth-win-close" title="Close">${ICONS.winClose}</button>
+                </div>`
+              : ''
+          }
         </div>
       </header>
 

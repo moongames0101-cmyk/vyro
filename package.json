@@ -1,6 +1,6 @@
 {
   "name": "vyro",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "moongames0101-cmyk",
   "description": "VYRO — Discord + Snapchat hybrid chat platform for PC (.exe) and Mobile (PWA), distributed & auto-updated via GitHub Releases.",
   "main": "electron/main.js",

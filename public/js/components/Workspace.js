@@ -98,30 +98,35 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
     <div class="app-shell">
       <div class="vyro-titlebar">
         <div class="titlebar-left">
-          <div class="titlebar-dots">
-            <span class="win-dot red" id="win-close" title="Close"></span>
-            <span class="win-dot yellow" id="win-min" title="Minimize"></span>
-            <span class="win-dot green" id="win-max" title="Maximize"></span>
+          <div class="live-sync-pill">
+            <span class="live-dot ${state.wsConnected ? '' : 'reconnecting'}"></span>
+            <span style="color:${state.wsConnected ? '#86EFAC' : '#FCD34D'};">${state.wsConnected ? 'Live' : 'Syncing'}</span>
           </div>
-          <span style="font-size:11px;color:${state.wsConnected ? '#4ADE80' : '#F59E0B'};font-weight:700;">
-            ${state.wsConnected ? '● Live' : '○ Syncing'}
-          </span>
         </div>
 
         <div class="global-search-wrap">
-          <span class="global-search-icon">🔍</span>
-          <input class="global-search-input" id="global-vyro-search" placeholder="Search Vyro..." value="${escapeHtml(searchQuery)}" />
+          <span class="global-search-icon">${ICONS.search}</span>
+          <input class="global-search-input" id="global-vyro-search" placeholder="Search friends, servers, or messages..." value="${escapeHtml(searchQuery)}" />
         </div>
 
         <div class="titlebar-right">
           ${
             state.updateInfo?.updateAvailable || state.desktopUpdateState?.stage === 'ready'
-              ? `<button class="btn btn-primary btn-sm" id="tb-upd-btn" style="padding:5px 11px;font-size:11.5px;">✨ Update Available</button>`
-              : `<button class="tb-icon-btn" id="tb-upd-btn" title="Check for Updates">🔄</button>`
+              ? `<button class="btn btn-primary btn-sm" id="tb-upd-btn" style="padding:5px 11px;font-size:11.5px;">${ICONS.sparkles} Update Available</button>`
+              : `<button class="tb-icon-btn" id="tb-upd-btn" title="Check for Updates">${ICONS.refresh}</button>`
           }
           <button class="tb-icon-btn" id="tb-qr-btn" title="Connect Mobile via QR">${ICONS.qr}</button>
-          <button class="tb-icon-btn" id="tb-notif-btn" title="Notifications">🔔${unreadSnapsTotal > 0 ? `<span class="tb-notif-badge">${unreadSnapsTotal}</span>` : ''}</button>
+          <button class="tb-icon-btn" id="tb-notif-btn" title="Notifications">${ICONS.bell}${unreadSnapsTotal > 0 ? `<span class="tb-notif-badge">${unreadSnapsTotal}</span>` : ''}</button>
           <button class="tb-icon-btn" id="tb-friends-btn" title="Friends">${ICONS.users}</button>
+          ${
+            window.vyroDesktop
+              ? `<div class="tb-win-group">
+                  <button class="tb-win-btn" id="win-min" title="Minimize">${ICONS.winMin}</button>
+                  <button class="tb-win-btn" id="win-max" title="Maximize / Restore">${ICONS.winMax}</button>
+                  <button class="tb-win-btn close" id="win-close" title="Close">${ICONS.winClose}</button>
+                </div>`
+              : ''
+          }
         </div>
       </div>
 
@@ -133,13 +138,13 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
               <div class="rail-brand-word">VYRO</div>
             </div>
             <nav class="rail-nav-list">
-              <button class="rail-nav-btn ${navTab === 'home' ? 'active' : ''}" data-rail-nav="home"><span>🏠</span><span>Home</span></button>
-              <button class="rail-nav-btn ${navTab === 'discover' ? 'active' : ''}" data-rail-nav="discover"><span>🧭</span><span>Discover</span></button>
-              <button class="rail-nav-btn ${navTab === 'messages' ? 'active' : ''}" data-rail-nav="messages"><span>💬</span><span>Messages</span>${unreadSnapsTotal > 0 ? `<span class="rail-nav-badge">${unreadSnapsTotal}</span>` : ''}</button>
-              <button class="rail-nav-btn ${navTab === 'friends' ? 'active' : ''}" data-rail-nav="friends"><span>👥</span><span>Friends</span></button>
-              <button class="rail-nav-btn ${navTab === 'communities' ? 'active' : ''}" data-rail-nav="communities"><span>🌐</span><span>Communities</span></button>
-              <button class="rail-nav-btn" id="rail-updates-btn"><span>🔄</span><span>Updates</span>${state.updateInfo?.updateAvailable || state.desktopUpdateState?.stage === 'ready' ? `<span class="rail-nav-badge" style="background:var(--vyro-gold);color:#090910;">NEW</span>` : ''}</button>
-              <button class="rail-nav-btn" id="rail-settings-btn"><span>⚙️</span><span>Settings</span></button>
+              <button class="rail-nav-btn ${navTab === 'home' ? 'active' : ''}" data-rail-nav="home">${ICONS.home}<span>Home</span></button>
+              <button class="rail-nav-btn ${navTab === 'discover' ? 'active' : ''}" data-rail-nav="discover">${ICONS.compass}<span>Discover</span></button>
+              <button class="rail-nav-btn ${navTab === 'messages' ? 'active' : ''}" data-rail-nav="messages">${ICONS.message}<span>Messages</span>${unreadSnapsTotal > 0 ? `<span class="rail-nav-badge">${unreadSnapsTotal}</span>` : ''}</button>
+              <button class="rail-nav-btn ${navTab === 'friends' ? 'active' : ''}" data-rail-nav="friends">${ICONS.users}<span>Friends</span></button>
+              <button class="rail-nav-btn ${navTab === 'communities' ? 'active' : ''}" data-rail-nav="communities">${ICONS.globe}<span>Communities</span></button>
+              <button class="rail-nav-btn" id="rail-updates-btn">${ICONS.refresh}<span>Updates</span>${state.updateInfo?.updateAvailable || state.desktopUpdateState?.stage === 'ready' ? `<span class="rail-nav-badge" style="background:var(--vyro-gold);color:#090910;">NEW</span>` : ''}</button>
+              <button class="rail-nav-btn" id="rail-settings-btn">${ICONS.settings}<span>Settings</span></button>
             </nav>
           </div>
 
@@ -463,9 +468,9 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
         </div>
       </div>
       <div class="chat-header-actions">
-        <button class="header-icon-btn" id="hdr-voice-quick" title="Jump into Voice Chat">📞</button>
-        <button class="header-icon-btn" id="hdr-snap-quick" title="Send Video/Photo Snap">🎥</button>
-        <button class="header-icon-btn" id="hdr-add-friend-2" title="Add Friend">👤+</button>
+        <button class="header-icon-btn" id="hdr-voice-quick" title="Jump into Voice Chat">${ICONS.phone}</button>
+        <button class="header-icon-btn" id="hdr-snap-quick" title="Send Video/Photo Snap">${ICONS.video}</button>
+        <button class="header-icon-btn" id="hdr-add-friend-2" title="Add Friend">${ICONS.userPlus}</button>
         <button class="header-icon-btn" id="toggle-members-btn" title="Toggle Right Panel">${ICONS.users}</button>
       </div>
     </div>
@@ -651,7 +656,9 @@ function renderRightWidgetsHtml(activeServer, track) {
     </div>
 
     <div class="music-widget-card">
-      <div class="music-cover" id="music-next-btn" title="Click for next track" style="cursor:pointer;">🎵</div>
+      <div class="music-cover" id="music-next-btn" title="Click for next track" style="cursor:pointer;">
+        ${musicPlaying ? '<div class="eq-bars"><span></span><span></span><span></span></div>' : ICONS.music}
+      </div>
       <div style="flex:1;min-width:0;">
         <div style="font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(track.title)}</div>
         <div style="font-size:11px;color:var(--text-muted);">${escapeHtml(track.artist)} • ${musicPlaying ? 'Playing' : 'Paused'}</div>

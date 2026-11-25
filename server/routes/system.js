@@ -7,7 +7,7 @@ function loadConfig(configPath) {
   try {
     return JSON.parse(fs.readFileSync(configPath, 'utf8'));
   } catch {
-    return { appName: 'VYRO', version: '1.0.1', port: 3847, githubOwner: 'moongames0101-cmyk', githubRepo: 'vyro' };
+    return { appName: 'VYRO', version: '1.0.2', port: 3847, githubOwner: 'moongames0101-cmyk', githubRepo: 'vyro' };
   }
 }
 

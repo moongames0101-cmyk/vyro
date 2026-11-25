@@ -45,18 +45,20 @@ async function startEmbeddedServer() {
 }
 
 function createWindow() {
-  const workArea = screen.getPrimaryDisplay().workAreaSize;
+  const primary = screen.getPrimaryDisplay();
+  const { x, y, width, height } = primary.workArea;
   mainWindow = new BrowserWindow({
-    x: 0,
-    y: 0,
-    width: workArea.width || 1440,
-    height: workArea.height || 900,
+    x,
+    y,
+    width: width || 1440,
+    height: height || 900,
     minWidth: 390,
     minHeight: 620,
     title: 'VYRO',
     icon: iconPath,
     frame: false,
     show: false,
+    autoHideMenuBar: true,
     backgroundColor: '#06060C',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -66,8 +68,9 @@ function createWindow() {
   });
 
   mainWindow.once('ready-to-show', () => {
-    mainWindow.maximize();
+    mainWindow.webContents.setZoomFactor(1);
     mainWindow.show();
+    mainWindow.maximize();
   });
 
   mainWindow.loadURL(serverUrl);
