@@ -1,3 +1,4 @@
+import { renderFramedAvatarCanvas, computeFitScales } from './components/AvatarCropper.js';
 import { escapeHtml } from './state.js';
 
 export const AVATAR_GRADIENTS = [
@@ -14,7 +15,7 @@ export const HAIR_STYLES = ['short', 'bob', 'curly', 'spiky', 'beanie', 'bolt'];
 export const EYE_STYLES = ['happy', 'wink', 'shades', 'star', 'chill'];
 export const OUTFIT_COLORS = ['#6D28D9', '#0369A1', '#B45309', '#BE185D', '#047857', '#1E1B4B'];
 
-export function cropAndCompressAvatar(file, maxSize = 256) {
+export function cropAndCompressAvatar(file, maxSize = 320) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = reject;
@@ -22,16 +23,10 @@ export function cropAndCompressAvatar(file, maxSize = 256) {
       const img = new Image();
       img.onerror = reject;
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = maxSize;
-        canvas.height = maxSize;
-        const ctx = canvas.getContext('2d');
-        const minDim = Math.min(img.width, img.height);
-        // Face/portrait bias: if image is portrait, crop slightly towards top (15%) so heads/faces are centered and not cut off
-        const sx = img.width > img.height ? (img.width - minDim) / 2 : 0;
-        const sy = img.height > img.width ? Math.min((img.height - minDim) * 0.25, img.height * 0.15) : 0;
-        ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, maxSize, maxSize);
-        resolve(canvas.toDataURL('image/jpeg', 0.88));
+        const { zeroCutoutMultiplier } = computeFitScales(img.width, img.height, maxSize);
+        const safeZoom = Math.max(0.65, Math.min(0.88, zeroCutoutMultiplier * 1.12));
+        const canvas = renderFramedAvatarCanvas(img, maxSize, { zoom: safeZoom, offsetX: 0, offsetY: 0, backdrop: 'blur' });
+        resolve(canvas.toDataURL('image/jpeg', 0.9));
       };
       img.src = reader.result;
     };

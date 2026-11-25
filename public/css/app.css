@@ -364,10 +364,10 @@
 }
 
 .story-bubble-btn:hover { transform: translateY(-2px); }
-.story-ring { padding: 2px; border-radius: 50%; background: var(--vyro-gradient); }
+.story-ring { display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 2px; border-radius: 50%; background: var(--vyro-gradient); }
 .story-ring.seen { background: rgba(148, 163, 184, 0.32); }
 .story-ring.add-story { background: rgba(250, 204, 21, 0.16); border: 1.5px dashed var(--vyro-gold); }
-.story-ring-inner { padding: 2px; border-radius: 50%; background: #0B0C16; }
+.story-ring-inner { display: flex; align-items: center; justify-content: center; padding: 2px; border-radius: 50%; background: #0B0C16; }
 .story-label { font-size: 10.5px; font-weight: 600; color: var(--text-secondary); max-width: 58px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Inner Two-Column Body */

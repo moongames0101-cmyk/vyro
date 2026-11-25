@@ -8,8 +8,8 @@ const buildDir = path.join(androidDir, 'build');
 const distDir = path.join(rootDir, 'dist');
 
 const sdkDir = path.join(process.env.LOCALAPPDATA, 'Android', 'Sdk');
-const buildToolsDir = path.join(sdkDir, 'build-tools', '34.0.0');
-const androidJar = path.join(sdkDir, 'platforms', 'android-34', 'android.jar');
+const buildToolsDir = path.join(sdkDir, 'build-tools', '36.0.0');
+const androidJar = path.join(sdkDir, 'platforms', 'android-36', 'android.jar');
 
 const aapt2 = path.join(buildToolsDir, 'aapt2.exe');
 const d8 = path.join(buildToolsDir, 'd8.bat');
@@ -20,6 +20,14 @@ const jdkBin = 'C:\\Program Files\\Microsoft\\jdk-21.0.12.8-hotspot\\bin';
 const javac = path.join(jdkBin, 'javac.exe');
 const jar = path.join(jdkBin, 'jar.exe');
 const keytool = path.join(jdkBin, 'keytool.exe');
+
+const MIN_SDK = 21;     // Android 5.0 Lollipop
+const TARGET_SDK = 36;  // Android 16 (prevents "built for older Android" warning on all modern devices)
+
+function computeVersionCode(versionStr) {
+  const parts = String(versionStr || '1.0.0').split('.').map((n) => parseInt(n, 10) || 0);
+  return (parts[0] || 0) * 10000 + (parts[1] || 0) * 100 + (parts[2] || 0);
+}
 
 function run(cmd, cwd = rootDir) {
   console.log(`> ${cmd}`);
@@ -40,9 +48,12 @@ function copyRecursive(src, dest) {
 }
 
 async function main() {
-  console.log('--- Building VYRO Android APK ---');
+  console.log(`--- Building VYRO Android APK (minSdk=${MIN_SDK}, targetSdk=${TARGET_SDK}) ---`);
 
-  // Clean build dir
+  const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'));
+  const version = pkg.version || '1.0.4';
+  const versionCode = computeVersionCode(version);
+
   fs.rmSync(buildDir, { recursive: true, force: true });
   fs.mkdirSync(buildDir, { recursive: true });
   fs.mkdirSync(distDir, { recursive: true });
@@ -53,34 +64,41 @@ async function main() {
   fs.mkdirSync(resCompiledDir, { recursive: true });
   fs.mkdirSync(classesDir, { recursive: true });
 
-  // 1. Sync public files to assets/www
-  console.log('Syncing web client into Android assets...');
+  // 1. Sync public/ and app icons assets/ into Android www/
+  console.log('Syncing web client and icons into Android assets...');
   fs.rmSync(assetsDir, { recursive: true, force: true });
   copyRecursive(path.join(rootDir, 'public'), assetsDir);
+  if (fs.existsSync(path.join(rootDir, 'assets'))) {
+    copyRecursive(path.join(rootDir, 'assets'), path.join(assetsDir, 'assets'));
+  }
 
   // 2. Compile resources with aapt2
   console.log('Compiling Android resources with AAPT2...');
   const resDir = path.join(androidDir, 'res');
   run(`"${aapt2}" compile --dir "${resDir}" -o "${resCompiledDir}"`);
 
-  // Collect compiled .flat files
   const flatFiles = fs.readdirSync(resCompiledDir)
-    .filter(f => f.endsWith('.flat'))
-    .map(f => `"${path.join(resCompiledDir, f)}"`)
+    .filter((f) => f.endsWith('.flat'))
+    .map((f) => `"${path.join(resCompiledDir, f)}"`)
     .join(' ');
 
   const initialApk = path.join(buildDir, 'app-initial.apk');
   const manifestPath = path.join(androidDir, 'AndroidManifest.xml');
 
   console.log('Linking Android APK with AAPT2...');
-  run(`"${aapt2}" link -I "${androidJar}" --manifest "${manifestPath}" ${flatFiles} -o "${initialApk}" --auto-add-overlay`);
+  run(
+    `"${aapt2}" link -I "${androidJar}" --manifest "${manifestPath}" ` +
+      `--min-sdk-version ${MIN_SDK} --target-sdk-version ${TARGET_SDK} ` +
+      `--version-code ${versionCode} --version-name "${version}" ` +
+      `${flatFiles} -o "${initialApk}" --auto-add-overlay`
+  );
 
   // 3. Compile Java sources
   console.log('Compiling Java classes...');
   const srcFiles = [
     path.join(androidDir, 'src', 'app', 'vyro', 'chat', 'LocalAssetServer.java'),
     path.join(androidDir, 'src', 'app', 'vyro', 'chat', 'MainActivity.java')
-  ].map(f => `"${f}"`).join(' ');
+  ].map((f) => `"${f}"`).join(' ');
 
   run(`"${javac}" -source 1.8 -target 1.8 -bootclasspath "${androidJar}" -d "${classesDir}" ${srcFiles}`);
 
@@ -96,17 +114,13 @@ async function main() {
   }
   collectClasses(classesDir);
 
-  run(`"${d8}" --output "${buildDir}" --lib "${androidJar}" --min-api 26 ${classFiles.join(' ')}`);
+  run(`"${d8}" --output "${buildDir}" --lib "${androidJar}" --min-api ${MIN_SDK} ${classFiles.join(' ')}`);
 
   // 5. Add classes.dex and assets to initial APK
   console.log('Packaging DEX and assets into APK...');
   const unalignedApk = path.join(buildDir, 'app-unaligned.apk');
   fs.copyFileSync(initialApk, unalignedApk);
-
-  // Add classes.dex
   run(`"${jar}" -uf "${unalignedApk}" -C "${buildDir}" classes.dex`);
-
-  // Add assets/
   run(`"${jar}" -uf "${unalignedApk}" -C "${androidDir}" assets`);
 
   // 6. Zipalign
@@ -114,35 +128,40 @@ async function main() {
   const alignedApk = path.join(buildDir, 'app-aligned.apk');
   run(`"${zipalign}" -f -p 4 "${unalignedApk}" "${alignedApk}"`);
 
-  // 7. Ensure Keystore & Sign with apksigner
+  // 7. Ensure Keystore & Sign with v1 + v2 + v3 schemes for all Android versions (5.0 -> 16+)
   const keystorePath = path.join(androidDir, 'vyro-release.keystore');
   if (!fs.existsSync(keystorePath)) {
     console.log('Generating release keystore...');
     run(`"${keytool}" -genkeypair -v -keystore "${keystorePath}" -alias vyro -keyalg RSA -keysize 2048 -validity 10000 -storepass vyroapp123 -keypass vyroapp123 -dname "CN=VYRO, OU=Engineering, O=VYRO, L=London, ST=London, C=GB"`);
   }
 
-  console.log('Signing APK with apksigner...');
-  run(`"${apksigner}" sign --ks "${keystorePath}" --ks-pass pass:vyroapp123 --ks-key-alias vyro --key-pass pass:vyroapp123 --out "${path.join(buildDir, 'VYRO-signed.apk')}" "${alignedApk}"`);
+  const signedApk = path.join(buildDir, 'VYRO-signed.apk');
+  console.log('Signing APK with apksigner (v1 + v2 + v3)...');
+  run(
+    `"${apksigner}" sign --ks "${keystorePath}" --ks-pass pass:vyroapp123 ` +
+      `--ks-key-alias vyro --key-pass pass:vyroapp123 ` +
+      `--min-sdk-version ${MIN_SDK} --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true ` +
+      `--out "${signedApk}" "${alignedApk}"`
+  );
 
-  // Verify
-  run(`"${apksigner}" verify "${path.join(buildDir, 'VYRO-signed.apk')}"`);
+  // Verify signature & manifest SDK levels
+  run(`"${apksigner}" verify --min-sdk-version ${MIN_SDK} "${signedApk}"`);
+  run(`"${aapt2}" dump badging "${signedApk}"`);
 
   // Copy final APK to dist/
-  const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'));
-  const version = pkg.version || '1.0.3';
   const outStandard = path.join(distDir, 'VYRO.apk');
   const outVersioned = path.join(distDir, `VYRO-${version}.apk`);
 
-  fs.copyFileSync(path.join(buildDir, 'VYRO-signed.apk'), outStandard);
-  fs.copyFileSync(path.join(buildDir, 'VYRO-signed.apk'), outVersioned);
+  fs.copyFileSync(signedApk, outStandard);
+  fs.copyFileSync(signedApk, outVersioned);
 
   const stats = fs.statSync(outStandard);
-  console.log(`\nSUCCESS! APK built and signed successfully:`);
+  console.log(`\nSUCCESS! APK built and signed for Android ${MIN_SDK}..${TARGET_SDK}:`);
   console.log(`- ${outStandard} (${stats.size.toLocaleString()} bytes)`);
   console.log(`- ${outVersioned}`);
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('Build failed:', err);
   process.exit(1);
 });

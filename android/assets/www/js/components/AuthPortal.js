@@ -1,4 +1,5 @@
 import { api, getSavedAccounts, getServerUrl, removeSavedAccount, saveRememberedAccount, setServerUrl, setToken } from '../api.js';
+import { openAvatarCropperModal } from './AvatarCropper.js';
 import {
   AVATAR_GRADIENTS,
   EYE_STYLES,
@@ -6,7 +7,6 @@ import {
   ICONS,
   OUTFIT_COLORS,
   SKIN_TONES,
-  cropAndCompressAvatar,
   renderAvatarHtml,
   renderBitmojiSvg
 } from '../icons.js';
@@ -72,7 +72,7 @@ export async function mountAuthPortal(container, onSignedIn) {
         <div class="auth-nav-actions">
           <button class="btn btn-ghost btn-sm" id="nav-login-btn">Log In</button>
           <button class="btn btn-secondary btn-sm" id="nav-signup-btn">Sign Up</button>
-          <button class="btn btn-primary btn-sm" id="nav-download-btn">${ICONS.download} Get .exe &amp; Mobile</button>
+          <button class="btn btn-primary btn-sm" id="nav-download-btn">${ICONS.download} Get .exe &amp; .apk</button>
           ${
             window.vyroDesktop
               ? `<div class="tb-win-group">
@@ -99,20 +99,20 @@ export async function mountAuthPortal(container, onSignedIn) {
             <div class="preview-stories-row">
               <div class="preview-story-pill">
                 <div class="preview-story-ring">⚡</div>
-                <span>Nova's Story • 2m</span>
+                <span>24h Stories • Live</span>
               </div>
               <div class="preview-story-pill">
                 <div class="preview-story-ring">📸</div>
-                <span>Zoe • Live Snap</span>
+                <span>Timed Flash Snaps</span>
               </div>
               <div class="preview-story-pill">
                 <div class="preview-story-ring">🔥</div>
-                <span>Kai • 18d Streak</span>
+                <span>Squad Streaks</span>
               </div>
             </div>
             <div class="preview-cards-grid">
               <div class="preview-mini-card">
-                <h4># VYRO HQ Channels</h4>
+                <h4># Real-Time Servers</h4>
                 <p>Text channels, ⚡ Flash Snap rooms, and 🔊 Voice stages with instant updates.</p>
               </div>
               <div class="preview-mini-card">
@@ -124,6 +124,7 @@ export async function mountAuthPortal(container, onSignedIn) {
 
           <div class="platform-badges">
             <span class="platform-chip">🪟 Windows .exe App</span>
+            <span class="platform-chip">🤖 Android .apk App</span>
             <span class="platform-chip">📱 Mobile PWA &amp; QR Sync</span>
             <span class="platform-chip">🐙 GitHub Releases Auto-Update</span>
           </div>
@@ -580,7 +581,7 @@ function renderSignupArea(area, root, onSignedIn) {
   const cfg = signupDraft.avatarConfig;
   const renderPreview = () => {
     if (signupDraft.avatarType === 'image' && signupDraft.avatarUrl) {
-      return `<img src="${escapeHtml(signupDraft.avatarUrl)}" style="width:92px;height:92px;border-radius:50%;object-fit:cover;border:3px solid var(--vyro-gold);" />`;
+      return `<img src="${escapeHtml(signupDraft.avatarUrl)}" style="width:92px;height:92px;border-radius:50%;object-fit:cover;object-position:center center;border:3px solid var(--vyro-gold);" />`;
     }
     return `<div style="width:92px;height:92px;border-radius:50%;overflow:hidden;border:3px solid var(--vyro-gold);background:${escapeHtml(cfg.bg)};">${renderBitmojiSvg(cfg)}</div>`;
   };
@@ -594,6 +595,7 @@ function renderSignupArea(area, root, onSignedIn) {
             Upload Photo
             <input type="file" id="su-av-file" accept="image/*" class="hidden" />
           </label>
+          ${signupDraft.avatarType === 'image' && signupDraft.avatarUrl ? '<button type="button" class="btn btn-secondary btn-sm" id="su-av-adjust" style="font-size:11px;">Adjust Fit</button>' : ''}
           ${signupDraft.avatarType === 'image' ? '<button type="button" class="btn-ghost btn-sm" id="su-av-reset" style="font-size:11px;">Use Bitmoji SVG</button>' : ''}
         </div>
         <div style="display:flex;flex-direction:column;gap:10px;">
@@ -663,18 +665,35 @@ function renderSignupArea(area, root, onSignedIn) {
   });
 
   const fileInput = stepBody.querySelector('#su-av-file');
-  fileInput.onchange = async () => {
+  fileInput.onchange = () => {
     const f = fileInput.files?.[0];
+    fileInput.value = '';
     if (!f) return;
-    try {
-      const dataUrl = await cropAndCompressAvatar(f, 256);
-      signupDraft.avatarType = 'image';
-      signupDraft.avatarUrl = dataUrl;
-      refreshStep3();
-    } catch {
-      toast('Could not process photo', 'error');
-    }
+    openAvatarCropperModal(f, {
+      title: 'Frame Your Profile Pic',
+      onConfirm: (dataUrl) => {
+        signupDraft.avatarType = 'image';
+        signupDraft.avatarUrl = dataUrl;
+        refreshStep3();
+      },
+      onError: () => toast('Could not load photo', 'error')
+    });
   };
+
+  const adjustBtn = stepBody.querySelector('#su-av-adjust');
+  if (adjustBtn && signupDraft.avatarUrl) {
+    adjustBtn.onclick = () => {
+      openAvatarCropperModal(signupDraft.avatarUrl, {
+        title: 'Adjust Profile Pic Fit',
+        onConfirm: (dataUrl) => {
+          signupDraft.avatarType = 'image';
+          signupDraft.avatarUrl = dataUrl;
+          refreshStep3();
+        },
+        onError: () => toast('Could not adjust photo', 'error')
+      });
+    };
+  }
 
   const resetBtn = stepBody.querySelector('#su-av-reset');
   if (resetBtn) {
@@ -818,7 +837,7 @@ async function renderDownloadView(container) {
           <div style="font-size:32px;">🤖</div>
           <div>
             <h3 style="font-size:18px;">Android Mobile (.apk)</h3>
-            <span class="field-hint">Standalone App • 1-Click Install for Android</span>
+            <span class="field-hint">Standalone App • Supports Android 5.0 through Android 16+</span>
           </div>
         </div>
         <p style="color:var(--text-secondary);font-size:13px;">

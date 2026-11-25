@@ -1,4 +1,5 @@
 import { api, getServerUrl, setServerUrl, setToken } from '../api.js';
+import { openAvatarCropperModal } from './AvatarCropper.js';
 import {
   AVATAR_GRADIENTS,
   EYE_STYLES,
@@ -6,7 +7,6 @@ import {
   ICONS,
   OUTFIT_COLORS,
   SKIN_TONES,
-  cropAndCompressAvatar,
   renderAvatarHtml,
   renderBitmojiSvg
 } from '../icons.js';
@@ -116,9 +116,9 @@ export function openCreateJoinServerModal(onRefresh) {
           <form id="join-srv-form" class="form-grid">
             <div class="field">
               <label>Invite Code</label>
-              <input class="input-control" id="join-code" placeholder="e.g. VYROHQ or OWLS24" style="text-transform:uppercase;font-family:var(--font-mono);" required />
+              <input class="input-control" id="join-code" placeholder="Enter server invite code" style="text-transform:uppercase;font-family:var(--font-mono);" required />
             </div>
-            <p class="field-hint">Public demo servers: <strong>VYROHQ</strong> and <strong>OWLS24</strong></p>
+            <p class="field-hint">Ask your friend or community owner for their 6-character invite code.</p>
             <button type="submit" class="btn btn-primary">Join Server 🚀</button>
           </form>
         `;
@@ -441,12 +441,13 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
             <div class="avatar-builder-box">
               <div class="avatar-preview-stage">
                 <div id="st-av-preview" style="width:84px;height:84px;border-radius:50%;overflow:hidden;border:2px solid var(--vyro-gold);">
-                  ${avatarType === 'image' && avatarUrl ? `<img src="${escapeHtml(avatarUrl)}" style="width:100%;height:100%;object-fit:cover;" />` : renderBitmojiSvg(draftCfg)}
+                  ${avatarType === 'image' && avatarUrl ? `<img src="${escapeHtml(avatarUrl)}" style="width:100%;height:100%;object-fit:cover;object-position:center center;display:block;" />` : renderBitmojiSvg(draftCfg)}
                 </div>
                 <label class="btn btn-secondary btn-sm" style="cursor:pointer;font-size:11px;">
                   Photo
                   <input type="file" id="st-av-file" accept="image/*" class="hidden" />
                 </label>
+                ${avatarType === 'image' && avatarUrl ? `<button type="button" class="btn btn-secondary btn-sm" id="st-av-adjust" style="font-size:11px;">Adjust Fit</button>` : ''}
               </div>
               <div style="display:flex;flex-direction:column;gap:8px;">
                 <div class="chip-row">
@@ -488,18 +489,35 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
             renderProfile();
           };
         });
-        body.querySelector('#st-av-file').onchange = async (e) => {
-          const f = e.target.files?.[0];
+        body.querySelector('#st-av-file').onchange = (e) => {
+          const inputEl = e.target;
+          const f = inputEl.files?.[0];
+          inputEl.value = '';
           if (!f) return;
-          try {
-            const dataUrl = await cropAndCompressAvatar(f, 256);
-            avatarType = 'image';
-            avatarUrl = dataUrl;
-            renderProfile();
-          } catch {
-            toast('Could not process photo', 'error');
-          }
+          openAvatarCropperModal(f, {
+            title: 'Frame Your Profile Pic',
+            onConfirm: (dataUrl) => {
+              avatarType = 'image';
+              avatarUrl = dataUrl;
+              renderProfile();
+            },
+            onError: () => toast('Could not load photo', 'error')
+          });
         };
+        const adjustBtn = body.querySelector('#st-av-adjust');
+        if (adjustBtn && avatarUrl) {
+          adjustBtn.onclick = () => {
+            openAvatarCropperModal(avatarUrl, {
+              title: 'Adjust Profile Pic Fit',
+              onConfirm: (dataUrl) => {
+                avatarType = 'image';
+                avatarUrl = dataUrl;
+                renderProfile();
+              },
+              onError: () => toast('Could not adjust photo', 'error')
+            });
+          };
+        }
         body.querySelector('#st-logout').onclick = () => {
           closeModal();
           onLogout();
@@ -532,8 +550,8 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
       const renderUpdates = async () => {
         body.innerHTML = `<div class="field-hint">Checking for the latest VYRO release...</div>`;
         const upd = await api('/api/updates/check').catch(() => ({
-          currentVersion: '1.0.1',
-          latestVersion: '1.0.1',
+          currentVersion: '1.0.4',
+          latestVersion: '1.0.4',
           updateAvailable: false,
           githubOwner: 'moongames0101-cmyk',
           githubRepo: 'vyro',

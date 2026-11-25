@@ -1,6 +1,6 @@
 {
   "name": "vyro",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "author": "moongames0101-cmyk",
   "description": "VYRO — Discord + Snapchat hybrid chat platform for PC (.exe) and Mobile Android (.apk), distributed & auto-updated via GitHub Releases.",
   "main": "electron/main.js",
@@ -49,11 +49,15 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
