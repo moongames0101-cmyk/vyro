@@ -24,6 +24,7 @@ export const state = {
   showMembersPane: true,
   mobileTab: 'chat', // 'chats' | 'servers' | 'chat' | 'stories' | 'profile'
   updateInfo: null,
+  desktopUpdateState: null,
   deferredInstallPrompt: null
 };
 

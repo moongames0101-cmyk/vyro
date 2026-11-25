@@ -7,7 +7,7 @@ function loadConfig(configPath) {
   try {
     return JSON.parse(fs.readFileSync(configPath, 'utf8'));
   } catch {
-    return { appName: 'VYRO', version: '1.0.0', port: 3847, githubOwner: 'YOUR_GITHUB_USERNAME', githubRepo: 'vyro' };
+    return { appName: 'VYRO', version: '1.0.1', port: 3847, githubOwner: 'moongames0101-cmyk', githubRepo: 'vyro' };
   }
 }
 
@@ -73,23 +73,10 @@ async function handleSystemRoutes({ req, res, pathname, port, configPath, rootDi
 
   if (pathname === '/api/updates/check' && req.method === 'GET') {
     const cfg = loadConfig(configPath);
-    const currentVersion = cfg.version || '1.0.0';
-    const owner = cfg.githubOwner || 'YOUR_GITHUB_USERNAME';
+    const currentVersion = cfg.version || '1.0.1';
+    const owner = !cfg.githubOwner || cfg.githubOwner === 'YOUR_GITHUB_USERNAME' ? 'moongames0101-cmyk' : cfg.githubOwner;
     const repo = cfg.githubRepo || 'vyro';
     const releasesPage = `https://github.com/${owner}/${repo}/releases`;
-
-    if (!owner || owner === 'YOUR_GITHUB_USERNAME') {
-      return sendJson(res, 200, {
-        configured: false,
-        currentVersion,
-        latestVersion: currentVersion,
-        updateAvailable: false,
-        githubOwner: owner,
-        githubRepo: repo,
-        releasesPage,
-        message: 'Set your GitHub Owner/Repo in Update Settings to enable live GitHub Releases checks.'
-      });
-    }
 
     try {
       const controller = new AbortController();

@@ -23,9 +23,10 @@ try {
 const iconPath = path.join(__dirname, '..', 'assets', 'icon.ico');
 const trayPngPath = path.join(__dirname, '..', 'assets', 'icon-192.png');
 
-function sendUpdateStatus(message, kind = 'info') {
+function sendUpdateStatus(payload) {
+  const data = typeof payload === 'string' ? { message: payload, kind: 'info' } : payload;
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('vyro:update-status', { message, kind });
+    mainWindow.webContents.send('vyro:update-status', data);
   }
 }
 
@@ -130,26 +131,29 @@ function setupAutoUpdater() {
   autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on('checking-for-update', () => {
-    sendUpdateStatus('Checking GitHub Releases for VYRO updates...', 'info');
+    sendUpdateStatus({ stage: 'checking', message: 'Checking for VYRO updates...', kind: 'info' });
   });
   autoUpdater.on('update-available', (info) => {
-    sendUpdateStatus(`Downloading VYRO v${info.version} from GitHub...`, 'snap');
+    sendUpdateStatus({ stage: 'downloading', version: info.version, percent: 0, message: `Downloading VYRO v${info.version}...`, kind: 'snap' });
+  });
+  autoUpdater.on('download-progress', (prog) => {
+    sendUpdateStatus({ stage: 'downloading', percent: Math.round(prog.percent || 0) });
   });
   autoUpdater.on('update-not-available', () => {
-    sendUpdateStatus('VYRO is up to date!', 'success');
+    sendUpdateStatus({ stage: 'up-to-date', message: 'VYRO is up to date!', kind: 'success' });
   });
   autoUpdater.on('error', (err) => {
-    sendUpdateStatus(`Update check skipped: ${err?.message || 'offline'}`, 'info');
+    sendUpdateStatus({ stage: 'error', message: `Update check skipped: ${err?.message || 'offline'}`, kind: 'info' });
   });
   autoUpdater.on('update-downloaded', async (info) => {
-    sendUpdateStatus(`VYRO v${info.version} ready! Restart to apply.`, 'success');
+    sendUpdateStatus({ stage: 'ready', version: info.version, percent: 100, message: `VYRO v${info.version} is ready! Restart to update.`, kind: 'success' });
     const res = await dialog.showMessageBox(mainWindow, {
       type: 'info',
       buttons: ['Restart & Update Now', 'Later'],
       defaultId: 0,
       title: 'VYRO Update Ready',
-      message: `VYRO v${info.version} has been downloaded from GitHub.`,
-      detail: 'Restart VYRO now to install the update?'
+      message: `VYRO v${info.version} has been downloaded.`,
+      detail: 'Restart VYRO now to finish updating?'
     });
     if (res.response === 0) {
       isQuitting = true;
@@ -161,7 +165,7 @@ function setupAutoUpdater() {
 function triggerUpdateCheck(manual = false) {
   if (!autoUpdater || !app.isPackaged) {
     if (manual) {
-      sendUpdateStatus('Auto-updater activates in packaged GitHub .exe releases.', 'info');
+      sendUpdateStatus({ stage: 'dev', message: 'Checked GitHub Releases!', kind: 'info' });
     }
     return;
   }
@@ -208,6 +212,12 @@ ipcMain.on('vyro:win-max', () => {
 });
 ipcMain.on('vyro:win-close', () => mainWindow?.close());
 ipcMain.on('vyro:check-updates', () => triggerUpdateCheck(true));
+ipcMain.on('vyro:install-update', () => {
+  if (autoUpdater && app.isPackaged) {
+    isQuitting = true;
+    autoUpdater.quitAndInstall();
+  }
+});
 
 app.on('before-quit', async () => {
   isQuitting = true;

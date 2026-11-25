@@ -388,7 +388,7 @@ export function openUserProfileModal(user, onOpenDm) {
   );
 }
 
-export function openSettingsAndUpdatesModal(onRefresh, onLogout) {
+export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'profile') {
   const u = state.user;
   if (!u) return;
   const draftCfg = { ...(u.avatarConfig || { bg: AVATAR_GRADIENTS[0], skin: SKIN_TONES[1], hair: 'short', eyes: 'happy', outfit: OUTFIT_COLORS[0], accent: '#FACC15' }) };
@@ -398,12 +398,12 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout) {
   openModal(
     `
     <div class="modal-head">
-      <h3>Settings, Avatar &amp; GitHub Updates</h3>
+      <h3>${initialTab === 'updates' ? 'VYRO Updates' : 'Settings &amp; Profile'}</h3>
       <button class="btn-ghost btn-sm" id="m-close">✕</button>
     </div>
     <div class="auth-tabs" style="margin-bottom:4px;">
-      <button class="auth-tab active" data-stab="profile">Profile &amp; Avatar</button>
-      <button class="auth-tab" data-stab="updates">GitHub Updates &amp; Server</button>
+      <button class="auth-tab ${initialTab === 'profile' ? 'active' : ''}" data-stab="profile">Profile &amp; Avatar</button>
+      <button class="auth-tab ${initialTab === 'updates' ? 'active' : ''}" data-stab="updates">Updates</button>
     </div>
     <div id="settings-body"></div>
     `,
@@ -528,61 +528,122 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout) {
       };
 
       const renderUpdates = async () => {
-        body.innerHTML = `<div class="field-hint">Checking GitHub Releases...</div>`;
-        const upd = await api('/api/updates/check').catch(() => ({ currentVersion: '1.0.0', githubOwner: 'YOUR_GITHUB_USERNAME', githubRepo: 'vyro' }));
+        body.innerHTML = `<div class="field-hint">Checking for the latest VYRO release...</div>`;
+        const upd = await api('/api/updates/check').catch(() => ({
+          currentVersion: '1.0.1',
+          latestVersion: '1.0.1',
+          updateAvailable: false,
+          githubOwner: 'moongames0101-cmyk',
+          githubRepo: 'vyro',
+          releasesPage: 'https://github.com/moongames0101-cmyk/vyro/releases'
+        }));
+        setState({ updateInfo: upd });
+
+        const dState = state.desktopUpdateState;
+        const isReady = dState?.stage === 'ready';
+        const isDownloading = dState?.stage === 'downloading';
+        const hasUpdate = Boolean(upd.updateAvailable || isReady || isDownloading);
+        const setupAsset = (upd.exeAssets || []).find((a) => a.name.toLowerCase().includes('setup')) || upd.exeAssets?.[0];
+        const portableAsset = (upd.exeAssets || []).find((a) => a.name.toLowerCase().includes('portable'));
+
         body.innerHTML = `
           <div class="form-grid">
-            <div style="background:var(--bg-elevated);padding:14px;border-radius:12px;border:1px solid var(--border-subtle);">
-              <div style="display:flex;justify-content:space-between;align-items:center;">
-                <strong>VYRO Desktop / Web</strong>
-                <span class="badge-pill" style="background:rgba(139,92,246,0.2);color:#DDD6FE;">v${escapeHtml(upd.currentVersion)}</span>
+            <div style="background:linear-gradient(135deg,rgba(139,92,246,0.16),rgba(250,204,21,0.1));padding:18px;border-radius:16px;border:1px solid rgba(168,85,247,0.35);display:flex;flex-direction:column;gap:12px;">
+              <div style="display:flex;align-items:center;gap:12px;">
+                <img src="/assets/icon-192.png" width="46" height="46" style="border-radius:12px;box-shadow:var(--shadow-glow);" />
+                <div style="flex:1;">
+                  <div style="font-size:16px;font-weight:900;">VYRO v${escapeHtml(upd.currentVersion)}</div>
+                  <div class="field-hint">
+                    ${
+                      isReady
+                        ? `✨ v${escapeHtml(dState.version || upd.latestVersion)} downloaded and ready to install!`
+                        : isDownloading
+                        ? `⬇️ Downloading update... ${dState.percent || 0}%`
+                        : upd.updateAvailable
+                        ? `✨ New version v${escapeHtml(upd.latestVersion)} is available!`
+                        : '✓ You are on the latest version of VYRO.'
+                    }
+                  </div>
+                </div>
+                <span class="badge-pill" style="background:${hasUpdate ? 'rgba(250,204,21,0.2)' : 'rgba(34,197,94,0.18)'};color:${hasUpdate ? 'var(--vyro-gold)' : '#4ADE80'};">
+                  ${hasUpdate ? `v${escapeHtml(dState?.version || upd.latestVersion)}` : 'Up to Date'}
+                </span>
               </div>
-              <div class="field-hint" style="margin-top:6px;">${escapeHtml(upd.message || (upd.updateAvailable ? `New version v${upd.latestVersion} available!` : 'You are running the latest version.'))}</div>
+
               ${
-                upd.exeAssets?.length
-                  ? `<div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
-                      ${upd.exeAssets.map((a) => `<a class="btn btn-primary btn-sm" href="${escapeHtml(a.downloadUrl)}" target="_blank">${ICONS.download} Download ${escapeHtml(a.name)}</a>`).join('')}
-                    </div>`
+                isDownloading
+                  ? `<div class="xp-track" style="height:8px;"><div class="xp-fill" style="width:${dState.percent || 15}%;"></div></div>`
                   : ''
               }
+
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                ${
+                  isReady && window.vyroDesktop
+                    ? `<button type="button" class="btn btn-primary" id="upd-install-now" style="flex:1;">🚀 Restart &amp; Install Update</button>`
+                    : window.vyroDesktop
+                    ? `<button type="button" class="btn btn-primary" id="upd-one-click" style="flex:1;">${upd.updateAvailable ? `⬇️ Download &amp; Install v${escapeHtml(upd.latestVersion)}` : '🔄 Check for Updates'}</button>`
+                    : setupAsset
+                    ? `<a class="btn btn-primary" href="${escapeHtml(setupAsset.downloadUrl)}" target="_blank" rel="noopener" style="flex:1;">${ICONS.download} ${upd.updateAvailable ? `Update to v${escapeHtml(upd.latestVersion)}` : 'Download Installer (.exe)'}</a>`
+                    : `<button type="button" class="btn btn-primary" id="upd-recheck-web" style="flex:1;">🔄 Check for Updates</button>`
+                }
+                ${
+                  portableAsset
+                    ? `<a class="btn btn-secondary" href="${escapeHtml(portableAsset.downloadUrl)}" target="_blank" rel="noopener">${ICONS.download} Portable .exe</a>`
+                    : ''
+                }
+              </div>
+
               ${
-                window.vyroDesktop
-                  ? `<button type="button" class="btn btn-secondary btn-sm" id="electron-check-upd" style="margin-top:10px;">🔄 Check Desktop Auto-Updater</button>`
+                upd.releaseNotes
+                  ? `<div style="font-size:12px;color:var(--text-secondary);background:rgba(0,0,0,0.28);padding:10px 12px;border-radius:10px;max-height:110px;overflow-y:auto;white-space:pre-line;">${escapeHtml(upd.releaseNotes)}</div>`
                   : ''
               }
-            </div>
 
-            <form id="gh-repo-form" class="form-grid">
-              <div class="form-row-2">
-                <div class="field">
-                  <label>GitHub Username / Org</label>
-                  <input class="input-control" id="gh-owner" value="${escapeHtml(upd.githubOwner || '')}" />
-                </div>
-                <div class="field">
-                  <label>GitHub Repo Name</label>
-                  <input class="input-control" id="gh-repo" value="${escapeHtml(upd.githubRepo || 'vyro')}" />
-                </div>
-              </div>
-              <button type="submit" class="btn btn-secondary btn-sm">Save GitHub Repo Link</button>
-            </form>
-
-            <div class="field">
-              <label>Connected Server URL (PC &amp; Mobile Sync)</label>
-              <div style="display:flex;gap:8px;">
-                <input class="input-control" id="srv-url-input" value="${escapeHtml(getServerUrl())}" placeholder="${escapeHtml(location.origin)} (default)" />
-                <button type="button" class="btn btn-secondary btn-sm" id="srv-url-save">Apply</button>
+              <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted);">
+                <span>Automatic updates via GitHub Releases</span>
+                <a href="${escapeHtml(upd.releasesPage)}" target="_blank" rel="noopener" style="color:var(--vyro-gold);font-weight:700;">View Releases ↗</a>
               </div>
             </div>
+
+            <details style="background:var(--bg-elevated);padding:10px 14px;border-radius:12px;border:1px solid var(--border-subtle);">
+              <summary style="cursor:pointer;font-size:12.5px;font-weight:700;color:var(--text-secondary);">Advanced Connection Settings</summary>
+              <div class="form-grid" style="margin-top:12px;">
+                <div class="field">
+                  <label>Custom Server URL (Optional)</label>
+                  <div style="display:flex;gap:8px;">
+                    <input class="input-control" id="srv-url-input" value="${escapeHtml(getServerUrl())}" placeholder="${escapeHtml(location.origin)} (local)" />
+                    <button type="button" class="btn btn-secondary btn-sm" id="srv-url-save">Apply</button>
+                  </div>
+                </div>
+                <form id="gh-repo-form" class="form-grid">
+                  <div class="form-row-2">
+                    <div class="field">
+                      <label>GitHub Owner</label>
+                      <input class="input-control" id="gh-owner" value="${escapeHtml(upd.githubOwner || 'moongames0101-cmyk')}" />
+                    </div>
+                    <div class="field">
+                      <label>Repository</label>
+                      <input class="input-control" id="gh-repo" value="${escapeHtml(upd.githubRepo || 'vyro')}" />
+                    </div>
+                  </div>
+                  <button type="submit" class="btn btn-secondary btn-sm">Save Custom Repo</button>
+                </form>
+              </div>
+            </details>
           </div>
         `;
 
-        const elecBtn = body.querySelector('#electron-check-upd');
-        if (elecBtn) {
-          elecBtn.onclick = () => {
-            window.vyroDesktop.checkForUpdates();
-            toast('Checking GitHub Releases via desktop updater...', 'info');
-          };
-        }
+        body.querySelector('#upd-install-now')?.addEventListener('click', () => {
+          window.vyroDesktop?.installUpdateNow();
+        });
+
+        body.querySelector('#upd-one-click')?.addEventListener('click', () => {
+          window.vyroDesktop?.checkForUpdates();
+          toast('Checking & downloading updates from GitHub...', 'info');
+          setTimeout(() => renderUpdates(), 1200);
+        });
+
+        body.querySelector('#upd-recheck-web')?.addEventListener('click', () => renderUpdates());
 
         body.querySelector('#gh-repo-form').onsubmit = async (e) => {
           e.preventDefault();
@@ -593,7 +654,7 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout) {
               githubRepo: body.querySelector('#gh-repo').value.trim()
             }
           });
-          toast('GitHub repository saved!', 'success');
+          toast('Saved repository override!', 'success');
           renderUpdates();
         };
 
@@ -613,7 +674,8 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout) {
         };
       });
 
-      renderProfile();
+      if (initialTab === 'updates') renderUpdates();
+      else renderProfile();
     },
     true
   );

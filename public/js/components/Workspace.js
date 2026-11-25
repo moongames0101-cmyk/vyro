@@ -114,10 +114,14 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
         </div>
 
         <div class="titlebar-right">
+          ${
+            state.updateInfo?.updateAvailable || state.desktopUpdateState?.stage === 'ready'
+              ? `<button class="btn btn-primary btn-sm" id="tb-upd-btn" style="padding:5px 11px;font-size:11.5px;">✨ Update Available</button>`
+              : `<button class="tb-icon-btn" id="tb-upd-btn" title="Check for Updates">🔄</button>`
+          }
           <button class="tb-icon-btn" id="tb-qr-btn" title="Connect Mobile via QR">${ICONS.qr}</button>
           <button class="tb-icon-btn" id="tb-notif-btn" title="Notifications">🔔${unreadSnapsTotal > 0 ? `<span class="tb-notif-badge">${unreadSnapsTotal}</span>` : ''}</button>
           <button class="tb-icon-btn" id="tb-friends-btn" title="Friends">${ICONS.users}</button>
-          <button class="tb-icon-btn" id="tb-upd-btn" title="Settings & GitHub Updates">🌙</button>
         </div>
       </div>
 
@@ -134,6 +138,7 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
               <button class="rail-nav-btn ${navTab === 'messages' ? 'active' : ''}" data-rail-nav="messages"><span>💬</span><span>Messages</span>${unreadSnapsTotal > 0 ? `<span class="rail-nav-badge">${unreadSnapsTotal}</span>` : ''}</button>
               <button class="rail-nav-btn ${navTab === 'friends' ? 'active' : ''}" data-rail-nav="friends"><span>👥</span><span>Friends</span></button>
               <button class="rail-nav-btn ${navTab === 'communities' ? 'active' : ''}" data-rail-nav="communities"><span>🌐</span><span>Communities</span></button>
+              <button class="rail-nav-btn" id="rail-updates-btn"><span>🔄</span><span>Updates</span>${state.updateInfo?.updateAvailable || state.desktopUpdateState?.stage === 'ready' ? `<span class="rail-nav-badge" style="background:var(--vyro-gold);color:#090910;">NEW</span>` : ''}</button>
               <button class="rail-nav-btn" id="rail-settings-btn"><span>⚙️</span><span>Settings</span></button>
             </nav>
           </div>
@@ -712,19 +717,24 @@ function wireWorkspaceEvents(
   container.querySelector('#tb-notif-btn')?.addEventListener('click', () => setState({ navSection: 'friends', viewScope: 'home', activeDmId: null }));
   container.querySelector('#tb-friends-btn')?.addEventListener('click', () => setState({ navSection: 'friends', viewScope: 'home', activeDmId: null }));
 
-  const openSettings = () =>
-    openSettingsAndUpdatesModal(loadAllData, async () => {
-      await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
-      wsClient.disconnect();
-      setToken('');
-      setState({ user: null, route: 'auth', authTab: 'login' });
-      location.hash = '#/login';
-    });
+  const openSettings = (tab = 'profile') =>
+    openSettingsAndUpdatesModal(
+      loadAllData,
+      async () => {
+        await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
+        wsClient.disconnect();
+        setToken('');
+        setState({ user: null, route: 'auth', authTab: 'login' });
+        location.hash = '#/login';
+      },
+      tab
+    );
 
-  container.querySelector('#tb-upd-btn')?.addEventListener('click', openSettings);
-  container.querySelector('#rail-settings-btn')?.addEventListener('click', openSettings);
-  container.querySelector('#open-my-settings')?.addEventListener('click', openSettings);
-  container.querySelector('#mobile-profile-btn')?.addEventListener('click', openSettings);
+  container.querySelector('#tb-upd-btn')?.addEventListener('click', () => openSettings('updates'));
+  container.querySelector('#rail-updates-btn')?.addEventListener('click', () => openSettings('updates'));
+  container.querySelector('#rail-settings-btn')?.addEventListener('click', () => openSettings('profile'));
+  container.querySelector('#open-my-settings')?.addEventListener('click', () => openSettings('profile'));
+  container.querySelector('#mobile-profile-btn')?.addEventListener('click', () => openSettings('profile'));
 
   container.querySelectorAll('[data-rail-nav]').forEach((btn) => {
     btn.onclick = () => {

@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('vyroDesktop', {
   maximize: () => ipcRenderer.send('vyro:win-max'),
   close: () => ipcRenderer.send('vyro:win-close'),
   checkForUpdates: () => ipcRenderer.send('vyro:check-updates'),
+  installUpdateNow: () => ipcRenderer.send('vyro:install-update'),
   onUpdateStatus: (cb) => {
     ipcRenderer.on('vyro:update-status', (_event, payload) => cb(payload));
   }

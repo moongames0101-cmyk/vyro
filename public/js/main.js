@@ -152,6 +152,7 @@ async function enterApp(user) {
   if (location.hash !== '#/app') location.hash = '#/app';
   setupWs();
   await loadAllData();
+  api('/api/updates/check').then((upd) => setState({ updateInfo: upd })).catch(() => {});
   if (state.viewScope === 'server' && state.activeChannelId) {
     await loadMessages('channel', state.activeChannelId);
   } else if (state.activeDmId) {
@@ -186,6 +187,7 @@ window.addEventListener('hashchange', syncRouteFromHash);
 
 if (window.vyroDesktop?.onUpdateStatus) {
   window.vyroDesktop.onUpdateStatus((info) => {
+    setState({ desktopUpdateState: info });
     if (info.message) toast(info.message, info.kind || 'info');
   });
 }
