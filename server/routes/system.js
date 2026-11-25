@@ -44,12 +44,18 @@ async function handleSystemRoutes({ req, res, pathname, port, configPath, rootDi
     const cfg = loadConfig(configPath);
     const lanUrls = getLanAddresses(port);
     const distDir = path.join(rootDir, 'dist');
+    const ver = cfg.version || '1.0.5';
     let localExes = [];
     let localApks = [];
     try {
       if (fs.existsSync(distDir)) {
-        localExes = fs.readdirSync(distDir).filter((f) => f.toLowerCase().endsWith('.exe'));
-        localApks = fs.readdirSync(distDir).filter((f) => f.toLowerCase().endsWith('.apk'));
+        const allExes = fs.readdirSync(distDir).filter((f) => f.toLowerCase().endsWith('.exe'));
+        const currentExes = allExes.filter((f) => f.includes(ver));
+        localExes = currentExes.length ? currentExes : allExes.slice(-2);
+
+        const allApks = fs.readdirSync(distDir).filter((f) => f.toLowerCase().endsWith('.apk'));
+        const currentApks = allApks.filter((f) => f.includes(ver));
+        localApks = currentApks.length ? currentApks : allApks.filter((f) => f === 'VYRO.apk').slice(0, 1);
       }
     } catch {}
 

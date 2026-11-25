@@ -62,11 +62,13 @@ export async function mountAuthPortal(container, onSignedIn) {
 
   container.innerHTML = `
     <div class="auth-page">
+      <div class="auth-aurora-bg"></div>
       <header class="auth-topbar">
         <div class="auth-brand" id="auth-logo-home">
           <img src="/assets/icon-192.png" alt="VYRO" />
           <div>
             <div class="auth-brand-title">VYRO</div>
+            <div class="auth-brand-sub">Where Servers Meet Streaks</div>
           </div>
         </div>
         <div class="auth-nav-actions">
@@ -87,12 +89,12 @@ export async function mountAuthPortal(container, onSignedIn) {
 
       <main class="auth-shell">
         <section class="auth-showcase">
-          <div class="auth-eyebrow">⚡ Discord Servers × Snapchat Streaks</div>
+          <div class="auth-eyebrow">⚡ Obsidian Prism UI • Discord Servers × Snapchat Streaks</div>
           <h1 class="auth-headline">
-            Your Squads, <span class="grad">Snaps &amp; Voice Lounges</span> in One Place.
+            Your Squads, <span class="grad">Snaps &amp; Spatial Voice</span> in One Place.
           </h1>
           <p class="auth-lead">
-            Build servers with persistent channels and live voice lounges, drop timed Snaps with filters, keep daily 🔥 streaks alive, and share 24h Stories across PC and Mobile.
+            Launch real communities with persistent channels and Spatial Voice Stages, drop timed Flash Snaps with canvas art, grow daily 🔥 streaks, and post 24h Stories across Windows &amp; Android — with zero bots.
           </p>
 
           <div class="showcase-preview">
@@ -106,27 +108,31 @@ export async function mountAuthPortal(container, onSignedIn) {
                 <span>Timed Flash Snaps</span>
               </div>
               <div class="preview-story-pill">
+                <div class="preview-story-ring">🎙️</div>
+                <span>Spatial Voice Stage</span>
+              </div>
+              <div class="preview-story-pill">
                 <div class="preview-story-ring">🔥</div>
                 <span>Squad Streaks</span>
               </div>
             </div>
             <div class="preview-cards-grid">
               <div class="preview-mini-card">
-                <h4># Real-Time Servers</h4>
-                <p>Text channels, ⚡ Flash Snap rooms, and 🔊 Voice stages with instant updates.</p>
+                <h4># Real-Time Communities</h4>
+                <p>Text channels, ⚡ ephemeral rooms, and spatial 🔊 Voice Stages with crystal status.</p>
               </div>
               <div class="preview-mini-card">
-                <h4>👻 Timed Snaps &amp; Stories</h4>
-                <p>Draw on canvas or live camera, set 5s–10s timers, Replay once, or Save in Chat.</p>
+                <h4>📸 Timed Snaps &amp; Stories</h4>
+                <p>Draw or shoot live camera Snaps, set 3s–10s timers, Replay once, or Save in Chat.</p>
               </div>
             </div>
           </div>
 
           <div class="platform-badges">
             <span class="platform-chip">🪟 Windows .exe App</span>
-            <span class="platform-chip">🤖 Android .apk App</span>
+            <span class="platform-chip">🤖 Universal Android .apk (5.0–16+)</span>
             <span class="platform-chip">📱 Mobile PWA &amp; QR Sync</span>
-            <span class="platform-chip">🐙 GitHub Releases Auto-Update</span>
+            <span class="platform-chip">🛡️ Zero Bots • Real Accounts Only</span>
           </div>
         </section>
 
@@ -747,10 +753,14 @@ function renderSignupArea(area, root, onSignedIn) {
 async function renderDownloadView(container) {
   container.innerHTML = `
     <div class="auth-page">
+      <div class="auth-aurora-bg"></div>
       <header class="auth-topbar">
         <div class="auth-brand" id="dl-back-home">
           <img src="/assets/icon-192.png" alt="VYRO" />
-          <div class="auth-brand-title">VYRO</div>
+          <div>
+            <div class="auth-brand-title">VYRO</div>
+            <div class="auth-brand-sub">Desktop &amp; Mobile Releases</div>
+          </div>
         </div>
         <div class="auth-nav-actions">
           <button class="btn btn-secondary btn-sm" id="dl-login-btn">Log In</button>
@@ -758,10 +768,10 @@ async function renderDownloadView(container) {
         </div>
       </header>
       <div class="download-page-wrap">
-        <div class="auth-eyebrow">⚡ PC Desktop .exe + Mobile App + GitHub Auto-Updates</div>
+        <div class="auth-eyebrow">⚡ PC Desktop .exe + Universal Android .apk + GitHub Auto-Updates</div>
         <h1 class="auth-headline" style="margin-top:14px;">Get <span class="grad">VYRO</span> Everywhere</h1>
         <p class="auth-lead" style="margin-top:8px;">
-          Download the standalone Windows <strong>.exe</strong> directly from GitHub Releases (with automatic updates), or scan the QR code to launch VYRO on iOS &amp; Android mobile.
+          Download the standalone Windows <strong>.exe</strong> or Universal Android <strong>.apk</strong> (Android 5.0–16+) directly, or scan the QR code to launch VYRO on iOS &amp; mobile web.
         </p>
 
         <div class="download-cards" id="dl-cards-root">
@@ -796,17 +806,21 @@ async function renderDownloadView(container) {
     networkInfoCache = { net, upd };
     const cards = container.querySelector('#dl-cards-root');
     const mobileUrl = net.lanUrls?.[0]?.url || location.origin;
+    const localExeSet = new Set(net.localExes || []);
     const localExeButtons = (net.localExes || [])
       .map((exe) => `<a class="btn btn-primary" href="/downloads/${encodeURIComponent(exe)}" download>${ICONS.download} Download ${escapeHtml(exe)}</a>`)
       .join('');
     const ghExeButtons = (upd.exeAssets || [])
+      .filter((a) => !localExeSet.has(a.name))
       .map((a) => `<a class="btn btn-primary" href="${escapeHtml(a.downloadUrl)}" target="_blank" rel="noopener">${ICONS.download} ${escapeHtml(a.name)}</a>`)
       .join('');
 
+    const localApkSet = new Set(net.localApks || []);
     const localApkButtons = (net.localApks || [])
       .map((apk) => `<a class="btn btn-primary" href="/downloads/${encodeURIComponent(apk)}" download>${ICONS.download} Download ${escapeHtml(apk)} (Android)</a>`)
       .join('');
     const ghApkButtons = (upd.apkAssets || [])
+      .filter((a) => !localApkSet.has(a.name))
       .map((a) => `<a class="btn btn-primary" href="${escapeHtml(a.downloadUrl)}" target="_blank" rel="noopener">${ICONS.download} Download ${escapeHtml(a.name)} (Android APK)</a>`)
       .join('');
 

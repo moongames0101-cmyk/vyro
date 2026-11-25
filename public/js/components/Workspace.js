@@ -17,16 +17,47 @@ let mediaRecorder = null;
 let audioChunks = [];
 let draftMessageText = '';
 let searchQuery = '';
+let heroCollapsed = false;
+let emojiTrayOpen = false;
+let voiceCamStream = null;
+let voiceCamBlur = false;
+let voiceJoinStartedAt = null;
+let voiceTimerHandle = null;
+
+const QUICK_EMOJIS = ['🔥', '⚡', '😂', '❤️', '🙌', '👀', '💀', '🎉', '✨', '🫡'];
 
 const MUSIC_TRACKS = [
-  { title: 'Nightfall', artist: 'VYRO Music', freq: 220 },
-  { title: 'Cyber Halo', artist: 'VYRO Synth', freq: 261.6 },
-  { title: 'Golden Streak', artist: 'VYRO Chill', freq: 196 }
+  { title: 'Nightfall', artist: 'VYRO Synth', freq: 220 },
+  { title: 'Cyber Halo', artist: 'VYRO Prism', freq: 261.6 },
+  { title: 'Golden Streak', artist: 'VYRO Chill', freq: 196 },
+  { title: 'Obsidian Drift', artist: 'VYRO Lo-Fi', freq: 246.9 }
 ];
 let musicPlaying = false;
 let musicTrackIdx = 0;
 let musicTimer = null;
 let musicCtx = null;
+
+function stopVoiceCameraStream() {
+  if (voiceCamStream) {
+    voiceCamStream.getTracks().forEach((t) => t.stop());
+    voiceCamStream = null;
+  }
+}
+
+function getTimeGreeting() {
+  const hr = new Date().getHours();
+  if (hr < 12) return 'Good morning';
+  if (hr < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
+function formatCallDuration(startedAt) {
+  if (!startedAt) return '00:00';
+  const sec = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+  const m = String(Math.floor(sec / 60)).padStart(2, '0');
+  const s = String(sec % 60).padStart(2, '0');
+  return `${m}:${s}`;
+}
 
 function toggleMusicPlayer(onUpdate) {
   musicPlaying = !musicPlaying;
@@ -39,27 +70,80 @@ function toggleMusicPlayer(onUpdate) {
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!musicCtx && AudioCtx) musicCtx = new AudioCtx();
-    const playNote = () => {
+    const playChord = () => {
       if (!musicPlaying || !musicCtx) return;
       const base = MUSIC_TRACKS[musicTrackIdx].freq;
       const ratios = [1, 1.2, 1.5, 1.8];
       const f = base * ratios[Math.floor(Math.random() * ratios.length)];
-      const osc = musicCtx.createOscillator();
-      const gain = musicCtx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(f, musicCtx.currentTime);
-      gain.gain.setValueAtTime(0.001, musicCtx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.04, musicCtx.currentTime + 0.12);
-      gain.gain.exponentialRampToValueAtTime(0.001, musicCtx.currentTime + 0.9);
-      osc.connect(gain);
-      gain.connect(musicCtx.destination);
-      osc.start();
-      osc.stop(musicCtx.currentTime + 0.95);
+      for (const mult of [1, 1.5]) {
+        const osc = musicCtx.createOscillator();
+        const gain = musicCtx.createGain();
+        osc.type = mult === 1 ? 'triangle' : 'sine';
+        osc.frequency.setValueAtTime(f * mult, musicCtx.currentTime);
+        gain.gain.setValueAtTime(0.001, musicCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(mult === 1 ? 0.032 : 0.015, musicCtx.currentTime + 0.14);
+        gain.gain.exponentialRampToValueAtTime(0.0008, musicCtx.currentTime + 0.92);
+        osc.connect(gain);
+        gain.connect(musicCtx.destination);
+        osc.start();
+        osc.stop(musicCtx.currentTime + 0.96);
+      }
     };
-    playNote();
-    musicTimer = setInterval(playNote, 900);
+    playChord();
+    musicTimer = setInterval(playChord, 900);
   } catch {}
   onUpdate?.();
+}
+
+function renderAuroraBackdropHtml() {
+  return `
+    <div class="aurora-canvas" aria-hidden="true">
+      <svg class="aurora-waves-svg" viewBox="0 0 1440 900" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="auroraRibbon1" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#8B5CF6" stop-opacity="0.55" />
+            <stop offset="48%" stop-color="#EC4899" stop-opacity="0.32" />
+            <stop offset="100%" stop-color="#FACC15" stop-opacity="0.45" />
+          </linearGradient>
+          <linearGradient id="auroraRibbon2" x1="100%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#FACC15" stop-opacity="0.35" />
+            <stop offset="50%" stop-color="#A855F7" stop-opacity="0.38" />
+            <stop offset="100%" stop-color="#38BDF8" stop-opacity="0.16" />
+          </linearGradient>
+        </defs>
+        <path d="M-80 260 C 260 60, 480 420, 860 220 C 1140 70, 1320 260, 1520 140" fill="none" stroke="url(#auroraRibbon1)" stroke-width="2.2" />
+        <path d="M-80 680 C 240 500, 560 820, 920 600 C 1180 440, 1340 620, 1520 500" fill="none" stroke="url(#auroraRibbon2)" stroke-width="2.2" />
+        <path d="M-40 460 C 320 260, 620 580, 1020 380 C 1260 260, 1380 420, 1520 340" fill="none" stroke="url(#auroraRibbon1)" stroke-width="1" stroke-opacity="0.45" />
+      </svg>
+    </div>
+  `;
+}
+
+function renderBannerArtworkSvg() {
+  return `
+    <svg class="hero-scenic-svg" viewBox="0 0 640 160" preserveAspectRatio="xMaxYMax slice" aria-hidden="true">
+      <defs>
+        <radialGradient id="vyroMoonGlow" cx="72%" cy="32%" r="48%">
+          <stop offset="0%" stop-color="#FEF08A" stop-opacity="0.88" />
+          <stop offset="42%" stop-color="#D946EF" stop-opacity="0.52" />
+          <stop offset="100%" stop-color="#8B5CF6" stop-opacity="0" />
+        </radialGradient>
+        <linearGradient id="vyroPeak1" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#4C1D95" stop-opacity="0.78" />
+          <stop offset="100%" stop-color="#090A14" stop-opacity="0.96" />
+        </linearGradient>
+        <linearGradient id="vyroPeak2" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#1E1B4B" stop-opacity="0.92" />
+          <stop offset="65%" stop-color="#581C87" stop-opacity="0.85" />
+          <stop offset="100%" stop-color="#B45309" stop-opacity="0.72" />
+        </linearGradient>
+      </defs>
+      <circle cx="465" cy="52" r="78" fill="url(#vyroMoonGlow)" />
+      <circle cx="465" cy="52" r="28" fill="#FDE047" fill-opacity="0.22" stroke="#FDE047" stroke-opacity="0.45" stroke-width="1" />
+      <path d="M120 160 L260 66 L360 112 L485 38 L640 120 L640 160 Z" fill="url(#vyroPeak1)" />
+      <path d="M180 160 L320 92 L430 132 L545 72 L640 124 L640 160 Z" fill="url(#vyroPeak2)" />
+    </svg>
+  `;
 }
 
 export function renderWorkspace(container, { wsClient, loadAllData, loadMessages }) {
@@ -86,6 +170,7 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
   const currentScopeId = currentScopeType === 'channel' ? activeChannel.id : state.activeDmId;
 
   const unreadSnapsTotal = state.friends.reduce((acc, f) => acc + (f.unopenedSnapCount || 0), 0) + state.incomingRequests.length;
+  const activeStreaksTotal = state.friends.filter((f) => (f.streakCount || 0) > 0).length;
   const navTab = state.navSection || (state.viewScope === 'server' ? 'communities' : 'home');
 
   const totalXp = (user.snapScore || 0) * 15 + 450;
@@ -94,30 +179,53 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
   const xpPct = Math.round((xpInLevel / 500) * 100);
   const track = MUSIC_TRACKS[musicTrackIdx];
 
+  // Calculate active voice roster count & current scope breadcrumb
+  const voiceChannel = activeServer?.channels.find((c) => c.type === 'voice') || { id: 'ch_hq_lounge', name: 'Voice Lounge' };
+  const inThisVc = state.voiceState[state.myVoiceChannelId || voiceChannel.id] || [];
+
+  let scopeCrumb = 'Home';
+  if (navTab === 'voice') scopeCrumb = `Voice Stage • ${voiceChannel.name}`;
+  else if (navTab === 'discover') scopeCrumb = 'Discover';
+  else if (navTab === 'friends') scopeCrumb = 'Squad & Streaks';
+  else if (currentScopeType === 'channel' && activeChannel) scopeCrumb = `# ${activeChannel.name}`;
+  else if (activeFriendEntry) scopeCrumb = `@${activeFriendEntry.user.displayName}`;
+
+  const pool = new Map();
+  if (user) pool.set(user.id, { ...user, role: 'owner' });
+  for (const m of activeServer?.members || []) pool.set(m.id, m);
+  for (const f of state.friends || []) {
+    if (!pool.has(f.user.id)) pool.set(f.user.id, f.user);
+  }
+  const onlineCount = Array.from(pool.values()).filter((u) => u.presence !== 'offline').length;
+
   container.innerHTML = `
     <div class="app-shell">
-      <div class="vyro-titlebar">
+      ${renderAuroraBackdropHtml()}
+
+      <header class="vyro-titlebar">
         <div class="titlebar-left">
           <div class="live-sync-pill">
             <span class="live-dot ${state.wsConnected ? '' : 'reconnecting'}"></span>
             <span style="color:${state.wsConnected ? '#86EFAC' : '#FCD34D'};">${state.wsConnected ? 'Live' : 'Syncing'}</span>
           </div>
+          <div class="scope-crumb-pill">${escapeHtml(scopeCrumb)}</div>
         </div>
 
         <div class="global-search-wrap">
           <span class="global-search-icon">${ICONS.search}</span>
-          <input class="global-search-input" id="global-vyro-search" placeholder="Search friends, servers, or messages..." value="${escapeHtml(searchQuery)}" />
+          <input class="global-search-input" id="global-vyro-search" placeholder="Search friends, communities, or channels..." value="${escapeHtml(searchQuery)}" />
+          <span class="search-kbd-badge">Ctrl K</span>
         </div>
 
         <div class="titlebar-right">
           ${
             state.updateInfo?.updateAvailable || state.desktopUpdateState?.stage === 'ready'
-              ? `<button class="btn btn-primary btn-sm" id="tb-upd-btn" style="padding:5px 11px;font-size:11.5px;">${ICONS.sparkles} Update Available</button>`
+              ? `<button class="btn btn-primary btn-sm" id="tb-upd-btn" style="padding:5px 12px;font-size:11.5px;">${ICONS.sparkles} Update</button>`
               : `<button class="tb-icon-btn" id="tb-upd-btn" title="Check for Updates">${ICONS.refresh}</button>`
           }
           <button class="tb-icon-btn" id="tb-qr-btn" title="Connect Mobile via QR">${ICONS.qr}</button>
-          <button class="tb-icon-btn" id="tb-notif-btn" title="Notifications">${ICONS.bell}${unreadSnapsTotal > 0 ? `<span class="tb-notif-badge">${unreadSnapsTotal}</span>` : ''}</button>
-          <button class="tb-icon-btn" id="tb-friends-btn" title="Friends">${ICONS.users}</button>
+          <button class="tb-icon-btn" id="tb-notif-btn" title="Notifications &amp; Requests">${ICONS.bell}${unreadSnapsTotal > 0 ? `<span class="tb-notif-badge">${unreadSnapsTotal}</span>` : ''}</button>
+          <button class="tb-icon-btn" id="tb-friends-btn" title="Squad &amp; Streaks">${ICONS.users}</button>
           ${
             window.vyroDesktop
               ? `<div class="tb-win-group">
@@ -128,21 +236,25 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
               : ''
           }
         </div>
-      </div>
+      </header>
 
       <div class="app-workspace ${!state.showMembersPane ? 'hide-members' : ''} mobile-tab-${state.mobileTab}">
         <aside class="vyro-left-rail">
           <div>
             <div class="rail-brand-header">
-              <img src="/assets/icon-192.png" alt="VYRO" />
-              <div class="rail-brand-word">VYRO</div>
+              <div class="rail-brand-left">
+                <img src="/assets/icon-192.png" alt="VYRO" />
+                <div class="rail-brand-word">VYRO</div>
+              </div>
+              <span class="rail-ver-tag">PRISM</span>
             </div>
             <nav class="rail-nav-list">
               <button class="rail-nav-btn ${navTab === 'home' ? 'active' : ''}" data-rail-nav="home">${ICONS.home}<span>Home</span></button>
-              <button class="rail-nav-btn ${navTab === 'discover' ? 'active' : ''}" data-rail-nav="discover">${ICONS.compass}<span>Discover</span></button>
               <button class="rail-nav-btn ${navTab === 'messages' ? 'active' : ''}" data-rail-nav="messages">${ICONS.message}<span>Messages</span>${unreadSnapsTotal > 0 ? `<span class="rail-nav-badge">${unreadSnapsTotal}</span>` : ''}</button>
-              <button class="rail-nav-btn ${navTab === 'friends' ? 'active' : ''}" data-rail-nav="friends">${ICONS.users}<span>Friends</span></button>
               <button class="rail-nav-btn ${navTab === 'communities' ? 'active' : ''}" data-rail-nav="communities">${ICONS.globe}<span>Communities</span></button>
+              <button class="rail-nav-btn ${navTab === 'voice' ? 'active' : ''}" data-rail-nav="voice">${ICONS.voiceStage}<span>Voice Stage</span>${inThisVc.length > 0 || state.myVoiceChannelId ? `<span class="rail-nav-badge" style="background:var(--status-online);color:#041208;">LIVE</span>` : ''}</button>
+              <button class="rail-nav-btn ${navTab === 'discover' ? 'active' : ''}" data-rail-nav="discover">${ICONS.compass}<span>Discover</span></button>
+              <button class="rail-nav-btn ${navTab === 'friends' ? 'active' : ''}" data-rail-nav="friends">${ICONS.users}<span>Friends</span>${state.incomingRequests.length ? `<span class="rail-nav-badge">${state.incomingRequests.length}</span>` : ''}</button>
               <button class="rail-nav-btn" id="rail-updates-btn">${ICONS.refresh}<span>Updates</span>${state.updateInfo?.updateAvailable || state.desktopUpdateState?.stage === 'ready' ? `<span class="rail-nav-badge" style="background:var(--vyro-gold);color:#090910;">NEW</span>` : ''}</button>
               <button class="rail-nav-btn" id="rail-settings-btn">${ICONS.settings}<span>Settings</span></button>
             </nav>
@@ -152,10 +264,10 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
             <div class="level-xp-card">
               <div class="level-xp-top">
                 <span>Level ${level}</span>
-                <span style="color:var(--vyro-gold);">👻 ${user.snapScore}</span>
+                <span style="color:var(--vyro-gold);">👻 ${user.snapScore || 0}</span>
               </div>
               <div class="xp-track"><div class="xp-fill" style="width:${xpPct}%;"></div></div>
-              <div class="xp-sub">${xpInLevel} / 500 XP</div>
+              <div class="xp-sub">${xpInLevel} / 500 XP • ${activeStreaksTotal} 🔥</div>
             </div>
 
             <div class="rail-user-card" id="open-my-settings">
@@ -163,33 +275,44 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
                 ${renderAvatarHtml(user, 34, true)}
                 <div style="min-width:0;">
                   <div style="font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(user.displayName)}</div>
-                  <div style="font-size:11px;color:var(--status-online);">Online</div>
+                  <div style="font-size:11px;color:var(--status-online);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(user.statusText || 'Online')}</div>
                 </div>
               </div>
-              <span style="color:var(--text-muted);font-weight:700;">›</span>
+              <span style="color:var(--text-muted);font-weight:800;font-size:15px;">›</span>
             </div>
           </div>
         </aside>
 
         <section class="center-glass-frame">
-          <div class="hero-welcome-banner">
+          <div class="hero-welcome-banner ${heroCollapsed ? 'collapsed' : ''}">
+            ${renderBannerArtworkSvg()}
             <div class="hero-welcome-left">
               <div class="hero-accent-bars"><span></span><span></span></div>
-              <div>
-                <div class="hero-welcome-title">Welcome back, ${escapeHtml(user.displayName)}</div>
-                <div class="hero-welcome-sub">Good to see you again! Drop a Snap or hop in Voice.</div>
+              <div style="min-width:0;">
+                <div class="hero-welcome-title">
+                  <span>${getTimeGreeting()}, ${escapeHtml(user.displayName)}</span>
+                  <span class="hero-stat-chip hide-sm">● ${onlineCount} Online</span>
+                  ${activeStreaksTotal > 0 ? `<span class="hero-stat-chip hide-sm">🔥 ${activeStreaksTotal} Streak${activeStreaksTotal > 1 ? 's' : ''}</span>` : ''}
+                </div>
+                ${
+                  heroCollapsed
+                    ? ''
+                    : `<div class="hero-welcome-sub">Drop a timed Flash Snap, share a 24h Story, or jump into Spatial Voice.</div>`
+                }
               </div>
             </div>
-            <div style="display:flex;gap:8px;z-index:2;" class="hide-sm">
-              <button class="btn btn-secondary btn-sm" id="hero-snap-btn">📸 New Snap</button>
+            <div class="hero-actions-right hide-sm">
+              <button class="btn btn-secondary btn-sm" id="hero-snap-btn">${ICONS.camera} New Snap</button>
+              <button class="btn btn-secondary btn-sm" id="hero-voice-btn">${ICONS.voiceStage} Voice</button>
               <button class="btn btn-primary btn-sm" id="hero-qr-btn">${ICONS.qr} Mobile Connect</button>
+              <button class="dock-icon-btn" id="toggle-hero-btn" title="${heroCollapsed ? 'Expand Banner' : 'Compact Banner'}" style="color:#fff;">${heroCollapsed ? '▾' : '▴'}</button>
             </div>
           </div>
 
           <div class="stories-strip">
             <button class="story-bubble-btn" id="add-story-btn">
               <div class="story-ring add-story">
-                <div class="story-ring-inner" style="width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--vyro-gold);">+</div>
+                <div class="story-ring-inner" style="width:38px;height:38px;font-size:18px;font-weight:800;color:var(--vyro-gold);">+</div>
               </div>
               <span class="story-label">Add Story</span>
             </button>
@@ -213,10 +336,18 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
                 <span>Direct Messages</span>
                 <button class="dock-icon-btn" id="open-add-friend" title="Add Friend">${ICONS.plus}</button>
               </div>
+              ${
+                state.friends.length === 0 && !searchQuery
+                  ? `<div style="padding:10px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.1);font-size:11.5px;color:var(--text-muted);text-align:center;margin-bottom:6px;">
+                      No DMs yet.<br/>
+                      <button type="button" id="empty-list-add-fr" style="color:var(--vyro-gold);font-weight:800;margin-top:4px;">+ Add a Friend</button>
+                    </div>`
+                  : ''
+              }
               ${state.friends
                 .filter((f) => !searchQuery || f.user.displayName.toLowerCase().includes(searchQuery.toLowerCase()))
                 .map((f) => {
-                  const active = state.viewScope === 'home' && state.activeDmId === f.dmId;
+                  const active = navTab !== 'voice' && navTab !== 'discover' && navTab !== 'friends' && state.viewScope === 'home' && state.activeDmId === f.dmId;
                   let statusCls = 'chat';
                   let statusLabel = f.user.statusText || 'Tap to chat';
                   if (f.unopenedSnapCount > 0) {
@@ -264,10 +395,17 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
                               .map((ch) => {
                                 const icon = ch.type === 'voice' ? '🔊' : ch.type === 'ephemeral' ? '⚡' : '#';
                                 const chActive = ch.id === activeChannel?.id && ch.type !== 'voice';
+                                const vcCount = ch.type === 'voice' ? (state.voiceState[ch.id] || []).length : 0;
                                 return `
                                   <button class="channel-row ${chActive ? 'active' : ''}" data-ch-id="${escapeHtml(ch.id)}" data-ch-type="${escapeHtml(ch.type)}">
-                                    <span>${icon} ${escapeHtml(ch.name)}</span>
-                                    ${ch.type === 'ephemeral' ? `<span class="channel-ttl-tag">${ch.defaultTtlSec}s</span>` : ''}
+                                    <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${icon} ${escapeHtml(ch.name)}</span>
+                                    ${
+                                      ch.type === 'ephemeral'
+                                        ? `<span class="channel-ttl-tag">${ch.defaultTtlSec}s</span>`
+                                        : ch.type === 'voice' && vcCount > 0
+                                        ? `<span class="channel-ttl-tag" style="background:rgba(34,197,94,0.18);color:#4ADE80;">${vcCount}</span>`
+                                        : ''
+                                    }
                                   </button>
                                 `;
                               })
@@ -282,22 +420,22 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
             </div>
 
             <div class="inner-chat-pane">
-              ${renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEntry, currentScopeType, currentScopeId)}
+              ${renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEntry, currentScopeType, currentScopeId, pool, voiceChannel)}
             </div>
           </div>
         </section>
 
         ${
           state.showMembersPane
-            ? `<aside class="right-widget-col" id="member-pane">${renderRightWidgetsHtml(activeServer, track)}</aside>`
+            ? `<aside class="right-widget-col" id="member-pane">${renderRightWidgetsHtml(activeServer, track, pool, voiceChannel)}</aside>`
             : ''
         }
       </div>
 
       <nav class="mobile-nav-bar">
-        <button class="mobile-nav-btn ${state.mobileTab === 'chats' ? 'active' : ''}" data-mtab="chats"><span>💬</span><span>DMs</span></button>
+        <button class="mobile-nav-btn ${state.mobileTab === 'chats' ? 'active' : ''}" data-mtab="chats"><span>💬</span><span>Chats</span></button>
         <button class="mobile-nav-btn ${state.mobileTab === 'servers' ? 'active' : ''}" data-mtab="servers"><span>🌐</span><span>Rooms</span></button>
-        <button class="mobile-nav-btn" id="mobile-snap-fab"><div class="mobile-snap-fab">📸</div></button>
+        <button class="mobile-nav-btn" id="mobile-snap-fab"><div class="mobile-snap-fab">${ICONS.camera}</div></button>
         <button class="mobile-nav-btn ${state.mobileTab === 'stories' ? 'active' : ''}" data-mtab="stories"><span>✨</span><span>Stories</span></button>
         <button class="mobile-nav-btn" id="mobile-profile-btn"><span>👤</span><span>You</span></button>
       </nav>
@@ -311,6 +449,7 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
     activeServer,
     currentScopeType,
     currentScopeId,
+    voiceChannel,
     wasInputFocused,
     wasSearchFocused,
     selStart,
@@ -319,7 +458,91 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
   });
 }
 
-function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEntry, currentScopeType, currentScopeId) {
+function renderSpatialVoiceStageHtml(activeServer, voiceChannel, pool) {
+  const vcId = state.myVoiceChannelId || voiceChannel.id;
+  const connected = Boolean(state.myVoiceChannelId);
+  const participants = state.voiceState[vcId] || [];
+
+  // Ensure local user always sees a clean tile when connected even before round-trip
+  const displayList = [...participants];
+  if (connected && state.user && !displayList.some((p) => p.userId === state.user.id)) {
+    displayList.unshift({ userId: state.user.id, muted: state.voiceMuted, deafened: state.voiceDeafened, camera: state.voiceCamera });
+  }
+
+  return `
+    <div class="chat-header">
+      <div class="chat-header-left">
+        <span class="chat-header-title">🎙️ ${escapeHtml(activeServer?.name || 'VYRO Lounge')} • ${escapeHtml(voiceChannel.name)}</span>
+        <span class="badge-pill" style="background:rgba(34,197,94,0.16);color:#4ADE80;">
+          ● ${displayList.length} in lounge${connected && voiceJoinStartedAt ? ` • <span id="vc-stage-timer">${formatCallDuration(voiceJoinStartedAt)}</span>` : ''}
+        </span>
+      </div>
+      <div class="chat-header-actions">
+        ${
+          activeServer?.inviteCode
+            ? `<button class="btn btn-secondary btn-sm" id="vc-copy-invite" data-code="${escapeHtml(activeServer.inviteCode)}">${ICONS.copy} Invite: ${escapeHtml(activeServer.inviteCode)}</button>`
+            : ''
+        }
+        <button class="header-icon-btn" id="hdr-add-friend-2" title="Add Friend">${ICONS.userPlus}</button>
+        <button class="header-icon-btn" id="toggle-members-btn" title="Toggle Right Panel">${ICONS.users}</button>
+      </div>
+    </div>
+
+    <div class="voice-stage-wrap">
+      ${
+        displayList.length
+          ? `<div class="voice-stage-grid">
+              ${displayList
+                .map((p) => {
+                  const u = pool.get(p.userId) || { displayName: 'Squad Member', presence: 'online' };
+                  const isMe = p.userId === state.user?.id;
+                  const showLocalVideo = isMe && state.voiceCamera && voiceCamStream;
+                  const speaking = !p.muted;
+                  return `
+                    <div class="voice-tile ${speaking ? 'speaking' : ''}">
+                      ${
+                        showLocalVideo
+                          ? `<video id="vc-local-video-preview" class="${voiceCamBlur ? 'blurred' : ''}" autoplay playsinline muted></video>`
+                          : `<div style="transform:scale(1.15);">${renderAvatarHtml(u, 76, true)}</div>
+                             <div style="font-size:12px;color:var(--text-muted);">${p.muted ? 'Muted' : 'Listening &amp; Ready'}</div>`
+                      }
+                      <div class="voice-tile-nametag">
+                        <span style="width:7px;height:7px;border-radius:50%;background:${p.muted ? '#EF4444' : '#22C55E'};"></span>
+                        <span>${escapeHtml(u.displayName)}${isMe ? ' (You)' : ''}</span>
+                        ${p.muted ? '<span style="color:#FCA5A5;">🔇</span>' : ''}
+                      </div>
+                    </div>
+                  `;
+                })
+                .join('')}
+            </div>`
+          : `<div class="empty-chat-bento">
+              <div class="empty-chat-orb">${ICONS.voiceStage}</div>
+              <div style="font-size:17px;font-weight:900;">Spatial Voice Stage Ready</div>
+              <div style="font-size:13px;color:var(--text-secondary);">Hop into <strong>${escapeHtml(voiceChannel.name)}</strong> to hang out live with friends, toggle webcam preview with optical blur, and see real-time speaker tiles.</div>
+              <div class="empty-starter-row">
+                <button class="btn btn-primary btn-sm" id="stage-join-cta" data-vc-id="${escapeHtml(voiceChannel.id)}">${ICONS.mic} Join Voice Lounge</button>
+                <button class="btn btn-secondary btn-sm" id="stage-invite-btn">${ICONS.userPlus} Invite Friends</button>
+              </div>
+            </div>`
+      }
+
+      <div class="voice-stage-dock">
+        ${
+          connected
+            ? `<button class="voice-dock-btn ${state.voiceMuted ? 'toggled' : ''}" id="stage-mute-btn" title="Mute / Unmute">${state.voiceMuted ? ICONS.micOff : ICONS.mic}</button>
+               <button class="voice-dock-btn ${state.voiceCamera ? '' : 'toggled'}" id="stage-cam-btn" title="Toggle Camera">${ICONS.video}</button>
+               <button class="voice-dock-btn ${voiceCamBlur ? '' : 'toggled'}" id="stage-blur-btn" title="Toggle Background Blur">${ICONS.droplet}</button>
+               <button class="voice-dock-btn ${state.voiceDeafened ? 'toggled' : ''}" id="stage-deaf-btn" title="Deafen Audio">${ICONS.headphones}</button>
+               <button class="voice-dock-btn end" id="stage-leave-btn" data-vc-id="${escapeHtml(voiceChannel.id)}" title="Leave Voice">${ICONS.phoneOff}</button>`
+            : `<button class="voice-dock-btn join" id="stage-join-btn" data-vc-id="${escapeHtml(voiceChannel.id)}">${ICONS.mic} Join Spatial Voice</button>`
+        }
+      </div>
+    </div>
+  `;
+}
+
+function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEntry, currentScopeType, currentScopeId, pool, voiceChannel) {
   const user = state.user;
 
   if (state.mobileTab === 'stories' && window.innerWidth <= 768) {
@@ -344,38 +567,59 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
             `
                 )
                 .join('')
-            : `<div class="dir-card">No stories yet — tap <strong>+ New Story</strong> to share a 24h story!</div>`
+            : `<div class="empty-chat-bento">
+                <div class="empty-chat-orb">✨</div>
+                <div style="font-weight:800;font-size:16px;">No Stories Yet</div>
+                <div class="field-hint">Share your first 24h Story with text, filters, and stickers!</div>
+                <button class="btn btn-primary btn-sm" id="empty-story-create-btn">+ Create 24h Story</button>
+              </div>`
         }
       </div>
     `;
+  }
+
+  if (navTab === 'voice') {
+    return renderSpatialVoiceStageHtml(activeServer, voiceChannel, pool);
   }
 
   if (navTab === 'discover') {
     return `
       <div class="chat-header">
         <div class="chat-header-left"><span class="chat-header-title">🧭 Discover VYRO Communities</span></div>
-        <button class="btn btn-primary btn-sm" id="disc-join-btn">+ Join by Invite</button>
+        <button class="btn btn-primary btn-sm" id="disc-join-btn">+ Create / Join Server</button>
       </div>
       <div class="friends-directory">
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;">
-          ${state.servers
-            .map(
-              (s) => `
-            <div class="dir-card" style="display:flex;flex-direction:column;gap:8px;">
-              <div style="display:flex;align-items:center;gap:10px;">
-                <span class="comm-icon-badge" style="background:${escapeHtml(s.iconColor)};width:36px;height:36px;">${escapeHtml(s.iconEmoji)}</span>
-                <div>
-                  <div style="font-weight:800;">${escapeHtml(s.name)}</div>
-                  <div class="field-hint">${s.members.length} members • Code: <code>${escapeHtml(s.inviteCode)}</code></div>
-                </div>
-              </div>
-              <div class="field-hint">${escapeHtml(s.description)}</div>
-              <button class="btn btn-secondary btn-sm" data-srv-open="${escapeHtml(s.id)}">Enter Community →</button>
-            </div>
-          `
-            )
-            .join('')}
-        </div>
+        ${
+          state.servers.length
+            ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:14px;">
+                ${state.servers
+                  .map(
+                    (s) => `
+                  <div class="dir-card" style="display:flex;flex-direction:column;gap:10px;">
+                    <div style="display:flex;align-items:center;gap:11px;">
+                      <span class="comm-icon-badge" style="background:${escapeHtml(s.iconColor)};width:40px;height:40px;font-size:17px;">${escapeHtml(s.iconEmoji)}</span>
+                      <div style="min-width:0;">
+                        <div style="font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(s.name)}</div>
+                        <div class="field-hint">${s.members.length} members • Code: <code style="color:var(--vyro-gold);">${escapeHtml(s.inviteCode)}</code></div>
+                      </div>
+                    </div>
+                    <div class="field-hint" style="flex:1;">${escapeHtml(s.description || 'Channels, Flash Snaps & Voice Lounge')}</div>
+                    <div style="display:flex;gap:8px;">
+                      <button class="btn btn-primary btn-sm" data-srv-open="${escapeHtml(s.id)}" style="flex:1;">Enter →</button>
+                      <button class="btn btn-secondary btn-sm" data-copy-invite="${escapeHtml(s.inviteCode)}" title="Copy Invite Code">${ICONS.copy}</button>
+                    </div>
+                  </div>
+                `
+                  )
+                  .join('')}
+              </div>`
+            : `<div class="empty-chat-bento">
+                <div class="empty-chat-orb">🌐</div>
+                <div style="font-size:17px;font-weight:900;">Start Your First Community</div>
+                <div style="font-size:13px;color:var(--text-secondary);">Create a private server for your squad with text rooms, ⚡ ephemeral Snap channels, and live Voice Stages — or join one using a friend's invite code.</div>
+                <button class="btn btn-primary btn-sm" id="empty-disc-create">+ Create or Join Server</button>
+              </div>`
+        }
       </div>
     `;
   }
@@ -383,21 +627,21 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
   if (navTab === 'friends' || !currentScopeId) {
     return `
       <div class="chat-header">
-        <div class="chat-header-left"><span class="chat-header-title">👥 Friends &amp; Snap Streaks</span></div>
-        <button class="btn btn-primary btn-sm" id="hdr-add-friend">${ICONS.plus} Add Friend</button>
+        <div class="chat-header-left"><span class="chat-header-title">👥 Squad &amp; Snap Streaks</span></div>
+        <button class="btn btn-primary btn-sm" id="hdr-add-friend">${ICONS.userPlus} Add Friend</button>
       </div>
       <div class="friends-directory">
         ${
           state.incomingRequests.length
-            ? `<div class="dir-card">
-                <h4 style="margin-bottom:10px;color:var(--vyro-gold);">Incoming Requests (${state.incomingRequests.length})</h4>
+            ? `<div class="dir-card" style="border-color:rgba(250,204,21,0.38);">
+                <h4 style="margin-bottom:10px;color:var(--vyro-gold);">Incoming Friend Requests (${state.incomingRequests.length})</h4>
                 ${state.incomingRequests
                   .map(
                     (r) => `
-                  <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;">
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;">
                     <div style="display:flex;align-items:center;gap:10px;">
-                      ${renderAvatarHtml(r.user, 34, true)}
-                      <strong>${escapeHtml(r.user.displayName)}#${escapeHtml(r.user.discriminator)}</strong>
+                      ${renderAvatarHtml(r.user, 36, true)}
+                      <strong>${escapeHtml(r.user.displayName)} <span style="color:var(--text-muted);font-family:var(--font-mono);font-size:11px;">#${escapeHtml(r.user.discriminator)}</span></strong>
                     </div>
                     <div style="display:flex;gap:6px;">
                       <button class="btn btn-primary btn-sm" data-fr-act="accept" data-fr-id="${escapeHtml(r.friendshipId)}">Accept</button>
@@ -410,27 +654,40 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
               </div>`
             : ''
         }
-        <div class="dir-card">
-          <h4 style="margin-bottom:10px;">Your Squad (${state.friends.length})</h4>
-          <div style="display:flex;flex-direction:column;gap:8px;">
-            ${state.friends
-              .map(
-                (f) => `
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:12px;background:rgba(255,255,255,0.04);">
-                <div style="display:flex;align-items:center;gap:10px;">
-                  ${renderAvatarHtml(f.user, 36, true)}
-                  <div>
-                    <div style="font-weight:700;">${escapeHtml(f.user.displayName)} ${f.streakCount > 0 ? `<span class="streak-pill">🔥 ${f.streakCount}</span>` : ''}</div>
-                    <div class="field-hint">${escapeHtml(f.user.statusText || f.user.presence)}</div>
-                  </div>
+        ${
+          state.friends.length
+            ? `<div class="dir-card">
+                <h4 style="margin-bottom:12px;">Your Squad (${state.friends.length})</h4>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                  ${state.friends
+                    .map(
+                      (f) => `
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);">
+                      <div style="display:flex;align-items:center;gap:11px;">
+                        ${renderAvatarHtml(f.user, 38, true)}
+                        <div>
+                          <div style="font-weight:800;">${escapeHtml(f.user.displayName)} ${f.streakCount > 0 ? `<span class="streak-pill">🔥 ${f.streakCount}</span>` : ''}</div>
+                          <div class="field-hint">${escapeHtml(f.user.statusText || f.user.presence)}</div>
+                        </div>
+                      </div>
+                      <button class="btn btn-primary btn-sm" data-open-dm="${escapeHtml(f.dmId)}">Message</button>
+                    </div>
+                  `
+                    )
+                    .join('')}
                 </div>
-                <button class="btn btn-primary btn-sm" data-open-dm="${escapeHtml(f.dmId)}">Message</button>
-              </div>
-            `
-              )
-              .join('')}
-          </div>
-        </div>
+              </div>`
+            : `<div class="empty-chat-bento">
+                <div class="empty-chat-orb">⚡</div>
+                <div style="font-size:18px;font-weight:900;">Clean Slate — Invite Your Real Squad</div>
+                <div style="font-size:13px;color:var(--text-secondary);">VYRO has zero fake bots. Add friends by username or share your QR code so they can join your server, drop Snaps, and start daily 🔥 streaks.</div>
+                <div class="empty-starter-row">
+                  <button class="btn btn-primary btn-sm" id="empty-fr-add">${ICONS.userPlus} Find &amp; Add Friends</button>
+                  <button class="btn btn-secondary btn-sm" id="empty-fr-qr">${ICONS.qr} Mobile QR Connect</button>
+                  <button class="btn btn-secondary btn-sm" id="empty-fr-srv">${ICONS.globe} Create Community</button>
+                </div>
+              </div>`
+        }
       </div>
     `;
   }
@@ -468,8 +725,13 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
         </div>
       </div>
       <div class="chat-header-actions">
-        <button class="header-icon-btn" id="hdr-voice-quick" title="Jump into Voice Chat">${ICONS.phone}</button>
-        <button class="header-icon-btn" id="hdr-snap-quick" title="Send Video/Photo Snap">${ICONS.video}</button>
+        ${
+          currentScopeType === 'channel' && activeServer?.inviteCode
+            ? `<button class="btn btn-secondary btn-sm hide-sm" data-copy-invite="${escapeHtml(activeServer.inviteCode)}" title="Copy Server Invite Code" style="font-size:11px;">${ICONS.copy} ${escapeHtml(activeServer.inviteCode)}</button>`
+            : ''
+        }
+        <button class="header-icon-btn" id="hdr-voice-quick" title="Jump into Voice Stage">${ICONS.phone}</button>
+        <button class="header-icon-btn" id="hdr-snap-quick" title="Open Snap Studio">${ICONS.video}</button>
         <button class="header-icon-btn" id="hdr-add-friend-2" title="Add Friend">${ICONS.userPlus}</button>
         <button class="header-icon-btn" id="toggle-members-btn" title="Toggle Right Panel">${ICONS.users}</button>
       </div>
@@ -479,21 +741,33 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
       ${
         state.messages.length
           ? state.messages.map((m) => renderMessageRowHtml(m, user.id)).join('')
-          : `<div style="margin:auto;text-align:center;color:var(--text-muted);padding:32px;">
-              <div style="font-size:32px;margin-bottom:8px;">⚡</div>
-              <div style="font-weight:700;color:var(--text-secondary);">Start the conversation!</div>
-              <div style="font-size:12px;">Send a message, drop a timed Snap, or record a voice note.</div>
+          : `<div class="empty-chat-bento">
+              <div class="empty-chat-orb">⚡</div>
+              <div style="font-size:16px;font-weight:900;">Start the Conversation</div>
+              <div style="font-size:12.5px;color:var(--text-secondary);">Send a message, drop a timed Flash Snap, or record a voice note.</div>
+              <div class="empty-starter-row">
+                <button type="button" class="btn btn-secondary btn-sm" data-quick-say="👋 Hey! Welcome to VYRO!">👋 Say Hi</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-quick-say="⚡ Wanna drop a Snap or hop in Voice?">⚡ Ping Squad</button>
+                <button type="button" class="btn btn-primary btn-sm" id="empty-open-snap">${ICONS.camera} Shoot a Snap</button>
+              </div>
             </div>`
       }
     </div>
 
-    <div class="typing-bar">${typingNames.length ? `✍️ ${escapeHtml(typingNames.join(', '))} typing...` : ''}</div>
+    <div class="typing-bar">${typingNames.length ? `✍️ ${escapeHtml(typingNames.join(', '))} is typing...` : ''}</div>
 
     <div class="composer-wrap">
       ${
+        emojiTrayOpen
+          ? `<div class="emoji-quick-tray" id="emoji-quick-tray">
+              ${QUICK_EMOJIS.map((em) => `<button type="button" class="emoji-quick-btn" data-insert-emoji="${em}">${em}</button>`).join('')}
+            </div>`
+          : ''
+      }
+      ${
         state.replyTo
           ? `<div class="reply-banner">
-              <span>Replying to <strong>${escapeHtml(state.replyTo.author?.displayName || 'User')}</strong>: ${escapeHtml(state.replyTo.content.slice(0, 60))}</span>
+              <span>Replying to <strong>${escapeHtml(state.replyTo.author?.displayName || 'User')}</strong>: ${escapeHtml((state.replyTo.content || 'Snap').slice(0, 60))}</span>
               <button type="button" id="cancel-reply-btn">✕</button>
             </div>`
           : ''
@@ -502,11 +776,12 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
         <button type="button" class="composer-icon-btn" id="open-snap-studio" title="Shoot or Draw a Snap">${ICONS.camera}</button>
         <select class="ttl-select" id="msg-ttl-select" title="Ephemeral Disappear Timer">
           <option value="0" ${defaultTtl === 0 ? 'selected' : ''}>∞ Stay</option>
-          <option value="10" ${defaultTtl > 0 && defaultTtl <= 10 ? 'selected' : ''}>⏱️ 10s</option>
-          <option value="15" ${defaultTtl === 15 ? 'selected' : ''}>⏱️ 15s</option>
-          <option value="30" ${defaultTtl >= 20 ? 'selected' : ''}>⏱️ 30s</option>
+          <option value="10" ${defaultTtl > 0 && defaultTtl <= 10 ? 'selected' : ''}>⏱ 10s</option>
+          <option value="15" ${defaultTtl === 15 ? 'selected' : ''}>⏱ 15s</option>
+          <option value="30" ${defaultTtl >= 20 ? 'selected' : ''}>⏱ 30s</option>
         </select>
-        <input class="composer-input" id="msg-input" placeholder="Type a message..." autocomplete="off" />
+        <input class="composer-input" id="msg-input" placeholder="Message ${escapeHtml(headerTitle)}..." autocomplete="off" />
+        <button type="button" class="composer-icon-btn" id="composer-emoji-btn" title="Quick Emojis">${ICONS.smile}</button>
         <button type="button" class="composer-icon-btn" id="voice-rec-btn" title="Record Voice Note">${ICONS.mic}</button>
         <button type="submit" class="composer-send-circle" title="Send">${ICONS.send}</button>
       </form>
@@ -564,12 +839,12 @@ function renderMessageRowHtml(m, viewerId) {
       <div>${renderAvatarHtml(author, 36)}</div>
       <div style="min-width:0;">
         <div class="msg-header">
-          <span class="msg-author" style="color:${isMine ? '#C084FC' : '#fff'};">${escapeHtml(author.displayName)}</span>
+          <span class="msg-author" style="color:${isMine ? '#D8B4FE' : '#fff'};">${escapeHtml(author.displayName)}</span>
           ${author.isBot ? `<span class="msg-bot-tag">BOT</span>` : ''}
           <span class="msg-time">${formatTime(m.createdAt)}</span>
           ${m.isSaved ? `<span class="msg-saved-pill">Saved</span>` : ''}
           ${m.isPinned ? `<span class="msg-saved-pill">📌 Pinned</span>` : ''}
-          ${m.expiresAt > 0 && !m.isSaved ? `<span class="msg-ttl-pill">⏱️ Disappears</span>` : ''}
+          ${m.expiresAt > 0 && !m.isSaved ? `<span class="msg-ttl-pill">⏱ Disappears</span>` : ''}
         </div>
         ${
           m.replyTo
@@ -580,26 +855,19 @@ function renderMessageRowHtml(m, viewerId) {
         ${reactionsHtml}
       </div>
       <div class="msg-actions">
-        ${['🔥', '😂', '❤️'].map((em) => `<button type="button" class="msg-act-btn" data-react-msg="${escapeHtml(m.id)}" data-emoji="${em}">${em}</button>`).join('')}
-        <button type="button" class="msg-act-btn" data-reply-msg="${escapeHtml(m.id)}" title="Reply">↩</button>
-        <button type="button" class="msg-act-btn" data-save-msg="${escapeHtml(m.id)}" title="Save in Chat">🔖</button>
-        ${isMine ? `<button type="button" class="msg-act-btn" data-del-msg="${escapeHtml(m.id)}" title="Delete">🗑️</button>` : ''}
+        ${['🔥', '😂', '❤️', '⚡'].map((em) => `<button type="button" class="msg-act-btn" data-react-msg="${escapeHtml(m.id)}" data-emoji="${em}">${em}</button>`).join('')}
+        <button type="button" class="msg-act-btn" data-reply-msg="${escapeHtml(m.id)}" title="Reply">${ICONS.reply}</button>
+        <button type="button" class="msg-act-btn" data-save-msg="${escapeHtml(m.id)}" title="Save in Chat">${ICONS.bookmark}</button>
+        ${isMine ? `<button type="button" class="msg-act-btn" data-del-msg="${escapeHtml(m.id)}" title="Delete">${ICONS.trash}</button>` : ''}
       </div>
     </div>
   `;
 }
 
-function renderRightWidgetsHtml(activeServer, track) {
-  const pool = new Map();
-  if (state.user) pool.set(state.user.id, { ...state.user, role: 'owner' });
-  for (const m of activeServer?.members || []) pool.set(m.id, m);
-  for (const f of state.friends || []) {
-    if (!pool.has(f.user.id)) pool.set(f.user.id, f.user);
-  }
+function renderRightWidgetsHtml(activeServer, track, pool, voiceChannel) {
   const allUsers = Array.from(pool.values());
   const onlineUsers = allUsers.filter((u) => u.presence !== 'offline');
 
-  const voiceChannel = activeServer?.channels.find((c) => c.type === 'voice') || { id: 'ch_hq_lounge', name: 'Voice Chat' };
   const inThisVc = state.voiceState[state.myVoiceChannelId || voiceChannel.id] || [];
   const connected = Boolean(state.myVoiceChannelId);
 
@@ -607,7 +875,7 @@ function renderRightWidgetsHtml(activeServer, track) {
     <div class="online-now-card">
       <div class="widget-head">
         <span><span style="color:var(--status-online);">●</span> Online Now</span>
-        <span style="color:var(--text-muted);font-size:12px;">${onlineUsers.length}</span>
+        <span class="badge-pill" style="background:rgba(255,255,255,0.06);color:var(--text-secondary);">${onlineUsers.length}</span>
       </div>
       <div class="online-list-scroll">
         ${onlineUsers
@@ -616,7 +884,7 @@ function renderRightWidgetsHtml(activeServer, track) {
           <button class="member-item" data-inspect-user="${escapeHtml(u.id)}">
             ${renderAvatarHtml(u, 32, true)}
             <div style="flex:1;min-width:0;">
-              <div class="member-name" style="color:${u.role === 'owner' ? '#C084FC' : 'var(--text-primary)'};">${escapeHtml(u.displayName)}</div>
+              <div class="member-name" style="color:${u.role === 'owner' ? '#D8B4FE' : 'var(--text-primary)'};">${escapeHtml(u.displayName)}</div>
               <div class="member-sub">${escapeHtml(u.statusText || u.presence)}</div>
             </div>
             ${u.role === 'owner' ? '<span title="Owner">👑</span>' : ''}
@@ -628,9 +896,14 @@ function renderRightWidgetsHtml(activeServer, track) {
     </div>
 
     <div class="voice-widget-card">
-      <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div style="font-weight:800;font-size:13.5px;"><span style="color:var(--status-online);">●</span> ${escapeHtml(voiceChannel.name)}</div>
-        <span style="font-size:11.5px;color:var(--text-muted);">${inThisVc.length} online</span>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div style="font-weight:800;font-size:13.5px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+          <span style="color:var(--status-online);">●</span> ${escapeHtml(voiceChannel.name)}
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:11px;color:var(--text-muted);">${inThisVc.length} online</span>
+          <button class="dock-icon-btn" id="open-voice-stage-btn" title="Expand Voice Stage">${ICONS.maximize}</button>
+        </div>
       </div>
       <div class="voice-avatars-row">
         ${
@@ -644,14 +917,14 @@ function renderRightWidgetsHtml(activeServer, track) {
       ${
         connected
           ? `<div class="voice-controls">
-              <button class="vc-btn ${state.voiceMuted ? 'active' : ''}" id="vc-mute-btn">${state.voiceMuted ? '🔇' : '🎙️'}</button>
-              <button class="vc-btn ${state.voiceDeafened ? 'active' : ''}" id="vc-deaf-btn">${state.voiceDeafened ? '🔕' : '🎧'}</button>
-              <button class="vc-btn ${state.voiceCamera ? 'active' : ''}" id="vc-cam-btn">📷</button>
+              <button class="vc-btn ${state.voiceMuted ? 'active' : ''}" id="vc-mute-btn" title="Mute">${state.voiceMuted ? '🔇' : '🎙️'}</button>
+              <button class="vc-btn ${state.voiceDeafened ? 'active' : ''}" id="vc-deaf-btn" title="Deafen">${state.voiceDeafened ? '🔕' : '🎧'}</button>
+              <button class="vc-btn ${state.voiceCamera ? 'active' : ''}" id="vc-cam-btn" title="Camera">📷</button>
             </div>`
           : ''
       }
       <button class="voice-join-pill ${connected ? 'connected' : ''}" id="voice-widget-btn" data-vc-id="${escapeHtml(voiceChannel.id)}">
-        <span>${connected ? '🔇 Leave Voice' : '🎙️ Join Voice'}</span>
+        <span>${connected ? 'Leave Voice' : 'Join Voice'}</span>
       </button>
     </div>
 
@@ -672,7 +945,7 @@ function renderRightWidgetsHtml(activeServer, track) {
 
 function wireWorkspaceEvents(
   container,
-  { wsClient, loadAllData, loadMessages, activeServer, currentScopeType, currentScopeId, wasInputFocused, wasSearchFocused, selStart, selEnd, prevTtl }
+  { wsClient, loadAllData, loadMessages, activeServer, currentScopeType, currentScopeId, voiceChannel, wasInputFocused, wasSearchFocused, selStart, selEnd, prevTtl }
 ) {
   const scrollEl = container.querySelector('#messages-feed');
   if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
@@ -703,6 +976,21 @@ function wireWorkspaceEvents(
     };
   }
 
+  // Attach live camera stream to stage preview if camera is on
+  const stageVideo = container.querySelector('#vc-local-video-preview');
+  if (stageVideo && voiceCamStream) {
+    stageVideo.srcObject = voiceCamStream;
+  }
+
+  // Update stage timer text gently when visible
+  clearInterval(voiceTimerHandle);
+  if (state.myVoiceChannelId && voiceJoinStartedAt && container.querySelector('#vc-stage-timer')) {
+    voiceTimerHandle = setInterval(() => {
+      const el = document.getElementById('vc-stage-timer');
+      if (el) el.textContent = formatCallDuration(voiceJoinStartedAt);
+    }, 1000);
+  }
+
   const openDmWithUser = async (userId, autoMessage = null) => {
     const res = await api('/api/dms/open', { method: 'POST', body: { userId } });
     if (autoMessage) {
@@ -716,22 +1004,59 @@ function wireWorkspaceEvents(
     await loadMessages('dm', res.dmId);
   };
 
+  const toggleVoiceConnection = (vcId) => {
+    playChime('voice');
+    if (state.myVoiceChannelId) {
+      wsClient.send('voice:leave', {});
+      stopVoiceCameraStream();
+      voiceJoinStartedAt = null;
+      setState({ myVoiceChannelId: null, voiceCamera: false });
+    } else {
+      voiceJoinStartedAt = Date.now();
+      wsClient.send('voice:join', { channelId: vcId, muted: state.voiceMuted, deafened: state.voiceDeafened, camera: state.voiceCamera });
+      setState({ myVoiceChannelId: vcId });
+      toast('Connected to Voice Stage!', 'success');
+    }
+  };
+
+  const toggleVoiceCamera = async () => {
+    const next = !state.voiceCamera;
+    if (next) {
+      try {
+        voiceCamStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      } catch {
+        toast('No camera found — audio tile remains active', 'info');
+      }
+    } else {
+      stopVoiceCameraStream();
+    }
+    setState({ voiceCamera: next });
+    wsClient.send('voice:update', { camera: next });
+  };
+
   container.querySelector('#win-min')?.addEventListener('click', () => window.vyroDesktop?.minimize());
   container.querySelector('#win-max')?.addEventListener('click', () => window.vyroDesktop?.maximize());
   container.querySelector('#win-close')?.addEventListener('click', () => window.vyroDesktop?.close());
   container.querySelector('#tb-qr-btn')?.addEventListener('click', openMobileQrModal);
   container.querySelector('#hero-qr-btn')?.addEventListener('click', openMobileQrModal);
+  container.querySelector('#empty-fr-qr')?.addEventListener('click', openMobileQrModal);
   container.querySelector('#tb-notif-btn')?.addEventListener('click', () => setState({ navSection: 'friends', viewScope: 'home', activeDmId: null }));
   container.querySelector('#tb-friends-btn')?.addEventListener('click', () => setState({ navSection: 'friends', viewScope: 'home', activeDmId: null }));
+
+  container.querySelector('#toggle-hero-btn')?.addEventListener('click', () => {
+    heroCollapsed = !heroCollapsed;
+    setState({ heroTick: Date.now() });
+  });
 
   const openSettings = (tab = 'profile') =>
     openSettingsAndUpdatesModal(
       loadAllData,
       async () => {
+        stopVoiceCameraStream();
         await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
         wsClient.disconnect();
         setToken('');
-        setState({ user: null, route: 'auth', authTab: 'login' });
+        setState({ user: null, route: 'auth', authTab: 'login', myVoiceChannelId: null });
         location.hash = '#/login';
       },
       tab
@@ -742,6 +1067,9 @@ function wireWorkspaceEvents(
   container.querySelector('#rail-settings-btn')?.addEventListener('click', () => openSettings('profile'));
   container.querySelector('#open-my-settings')?.addEventListener('click', () => openSettings('profile'));
   container.querySelector('#mobile-profile-btn')?.addEventListener('click', () => openSettings('profile'));
+
+  container.querySelector('#hero-voice-btn')?.addEventListener('click', () => setState({ navSection: 'voice', viewScope: 'home' }));
+  container.querySelector('#open-voice-stage-btn')?.addEventListener('click', () => setState({ navSection: 'voice', viewScope: 'home' }));
 
   container.querySelectorAll('[data-rail-nav]').forEach((btn) => {
     btn.onclick = () => {
@@ -782,8 +1110,24 @@ function wireWorkspaceEvents(
     };
   });
 
+  container.querySelectorAll('[data-copy-invite]').forEach((btn) => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const code = btn.dataset.copyInvite;
+      navigator.clipboard?.writeText(code);
+      toast(`Copied invite code: ${code}`, 'success');
+    };
+  });
+  container.querySelector('#vc-copy-invite')?.addEventListener('click', (e) => {
+    const code = e.currentTarget.dataset.code;
+    navigator.clipboard?.writeText(code);
+    toast(`Copied invite code: ${code}`, 'success');
+  });
+
   container.querySelector('#rail-add-srv')?.addEventListener('click', () => openCreateJoinServerModal(loadAllData));
   container.querySelector('#disc-join-btn')?.addEventListener('click', () => openCreateJoinServerModal(loadAllData));
+  container.querySelector('#empty-disc-create')?.addEventListener('click', () => openCreateJoinServerModal(loadAllData));
+  container.querySelector('#empty-fr-srv')?.addEventListener('click', () => openCreateJoinServerModal(loadAllData));
   container.querySelector('#add-channel-btn')?.addEventListener('click', () => {
     if (activeServer) openCreateChannelModal(activeServer.id, loadAllData);
   });
@@ -793,23 +1137,18 @@ function wireWorkspaceEvents(
       const chId = btn.dataset.chId;
       const type = btn.dataset.chType;
       if (type === 'voice') {
-        playChime('voice');
-        if (state.myVoiceChannelId === chId) {
-          wsClient.send('voice:leave', {});
-          setState({ myVoiceChannelId: null });
-        } else {
-          wsClient.send('voice:join', { channelId: chId, muted: state.voiceMuted, deafened: state.voiceDeafened, camera: state.voiceCamera });
-          setState({ myVoiceChannelId: chId });
-          toast('Joined Voice Chat!', 'success');
-        }
+        toggleVoiceConnection(chId);
         return;
       }
-      setState({ activeChannelId: chId, mobileTab: 'chat', replyTo: null });
+      setState({ navSection: 'communities', activeChannelId: chId, mobileTab: 'chat', replyTo: null });
       await loadMessages('channel', chId);
     };
   });
 
   container.querySelector('#open-add-friend')?.addEventListener('click', () => openAddFriendModal(loadAllData));
+  container.querySelector('#empty-list-add-fr')?.addEventListener('click', () => openAddFriendModal(loadAllData));
+  container.querySelector('#empty-fr-add')?.addEventListener('click', () => openAddFriendModal(loadAllData));
+  container.querySelector('#stage-invite-btn')?.addEventListener('click', () => openAddFriendModal(loadAllData));
   container.querySelector('#hdr-add-friend')?.addEventListener('click', () => openAddFriendModal(loadAllData));
   container.querySelector('#hdr-add-friend-2')?.addEventListener('click', () => openAddFriendModal(loadAllData));
 
@@ -838,33 +1177,35 @@ function wireWorkspaceEvents(
     };
   });
 
-  container.querySelector('#voice-widget-btn')?.addEventListener('click', () => {
-    const vcId = container.querySelector('#voice-widget-btn').dataset.vcId;
-    playChime('voice');
-    if (state.myVoiceChannelId) {
-      wsClient.send('voice:leave', {});
-      setState({ myVoiceChannelId: null });
-    } else {
-      wsClient.send('voice:join', { channelId: vcId, muted: state.voiceMuted, deafened: state.voiceDeafened, camera: state.voiceCamera });
-      setState({ myVoiceChannelId: vcId });
-      toast('Connected to Voice Chat!', 'success');
-    }
+  container.querySelector('#voice-widget-btn')?.addEventListener('click', (e) => toggleVoiceConnection(e.currentTarget.dataset.vcId));
+  container.querySelector('#stage-join-btn')?.addEventListener('click', (e) => toggleVoiceConnection(e.currentTarget.dataset.vcId));
+  container.querySelector('#stage-join-cta')?.addEventListener('click', (e) => toggleVoiceConnection(e.currentTarget.dataset.vcId));
+  container.querySelector('#stage-leave-btn')?.addEventListener('click', (e) => toggleVoiceConnection(e.currentTarget.dataset.vcId));
+  container.querySelector('#hdr-voice-quick')?.addEventListener('click', () => {
+    if (!state.myVoiceChannelId) toggleVoiceConnection(voiceChannel.id);
+    setState({ navSection: 'voice', viewScope: 'home' });
   });
-  container.querySelector('#hdr-voice-quick')?.addEventListener('click', () => container.querySelector('#voice-widget-btn')?.click());
-  container.querySelector('#vc-mute-btn')?.addEventListener('click', () => {
+
+  const toggleMute = () => {
     const next = !state.voiceMuted;
     setState({ voiceMuted: next });
     wsClient.send('voice:update', { muted: next });
-  });
-  container.querySelector('#vc-deaf-btn')?.addEventListener('click', () => {
+  };
+  const toggleDeaf = () => {
     const next = !state.voiceDeafened;
     setState({ voiceDeafened: next });
     wsClient.send('voice:update', { deafened: next });
-  });
-  container.querySelector('#vc-cam-btn')?.addEventListener('click', () => {
-    const next = !state.voiceCamera;
-    setState({ voiceCamera: next });
-    wsClient.send('voice:update', { camera: next });
+  };
+
+  container.querySelector('#vc-mute-btn')?.addEventListener('click', toggleMute);
+  container.querySelector('#stage-mute-btn')?.addEventListener('click', toggleMute);
+  container.querySelector('#vc-deaf-btn')?.addEventListener('click', toggleDeaf);
+  container.querySelector('#stage-deaf-btn')?.addEventListener('click', toggleDeaf);
+  container.querySelector('#vc-cam-btn')?.addEventListener('click', toggleVoiceCamera);
+  container.querySelector('#stage-cam-btn')?.addEventListener('click', toggleVoiceCamera);
+  container.querySelector('#stage-blur-btn')?.addEventListener('click', () => {
+    voiceCamBlur = !voiceCamBlur;
+    setState({ voiceTick: Date.now() });
   });
 
   container.querySelector('#music-toggle-btn')?.addEventListener('click', () => {
@@ -877,6 +1218,7 @@ function wireWorkspaceEvents(
 
   container.querySelector('#add-story-btn')?.addEventListener('click', () => openSnapStudioModal({ defaultTarget: 'story', onSent: loadAllData }));
   container.querySelector('#add-story-btn-2')?.addEventListener('click', () => openSnapStudioModal({ defaultTarget: 'story', onSent: loadAllData }));
+  container.querySelector('#empty-story-create-btn')?.addEventListener('click', () => openSnapStudioModal({ defaultTarget: 'story', onSent: loadAllData }));
   container.querySelectorAll('[data-story-group]').forEach((btn) => {
     btn.onclick = () =>
       openStoryViewer(Number(btn.dataset.storyGroup), state.storyGroups, {
@@ -886,7 +1228,7 @@ function wireWorkspaceEvents(
   });
 
   container.querySelector('#toggle-members-btn')?.addEventListener('click', () => {
-    if (window.innerWidth <= 1120) container.querySelector('#member-pane')?.classList.toggle('open');
+    if (window.innerWidth <= 980) container.querySelector('#member-pane')?.classList.toggle('open');
     else setState({ showMembersPane: !state.showMembersPane });
   });
   container.querySelector('#mobile-back-list')?.addEventListener('click', () => {
@@ -914,6 +1256,7 @@ function wireWorkspaceEvents(
     });
 
   container.querySelector('#open-snap-studio')?.addEventListener('click', launchSnap);
+  container.querySelector('#empty-open-snap')?.addEventListener('click', launchSnap);
   container.querySelector('#hero-snap-btn')?.addEventListener('click', launchSnap);
   container.querySelector('#hdr-snap-quick')?.addEventListener('click', launchSnap);
   container.querySelector('#mobile-snap-fab')?.addEventListener('click', launchSnap);
@@ -936,6 +1279,35 @@ function wireWorkspaceEvents(
     };
   }
 
+  container.querySelector('#composer-emoji-btn')?.addEventListener('click', () => {
+    emojiTrayOpen = !emojiTrayOpen;
+    setState({ emojiTick: Date.now() });
+  });
+
+  container.querySelectorAll('[data-insert-emoji]').forEach((btn) => {
+    btn.onclick = () => {
+      const em = btn.dataset.insertEmoji;
+      draftMessageText = (draftMessageText || '') + em;
+      emojiTrayOpen = false;
+      setState({ emojiTick: Date.now() });
+      setTimeout(() => document.getElementById('msg-input')?.focus(), 0);
+    };
+  });
+
+  container.querySelectorAll('[data-quick-say]').forEach((btn) => {
+    btn.onclick = async () => {
+      if (!currentScopeType || !currentScopeId) return;
+      try {
+        await api('/api/messages', {
+          method: 'POST',
+          body: { scopeType: currentScopeType, scopeId: currentScopeId, kind: 'text', content: btn.dataset.quickSay, ttlSec: 0 }
+        });
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    };
+  });
+
   container.querySelector('#composer-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const content = msgInput.value.trim();
@@ -943,6 +1315,7 @@ function wireWorkspaceEvents(
     const ttlSec = Number(container.querySelector('#msg-ttl-select').value || 0);
     msgInput.value = '';
     draftMessageText = '';
+    emojiTrayOpen = false;
     wsClient.send('typing:stop', { scopeType: currentScopeType, scopeId: currentScopeId });
     try {
       await api('/api/messages', {
@@ -1021,4 +1394,19 @@ function wireWorkspaceEvents(
       if (m) setState({ replyTo: m });
     };
   });
+
+  // Ctrl/Cmd + K global spotlight search focus
+  if (!window.__vyroKeyHooked) {
+    window.__vyroKeyHooked = true;
+    window.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        const input = document.getElementById('global-vyro-search');
+        if (input) {
+          e.preventDefault();
+          input.focus();
+          input.select();
+        }
+      }
+    });
+  }
 }

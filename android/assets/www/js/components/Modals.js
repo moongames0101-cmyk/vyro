@@ -550,8 +550,8 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
       const renderUpdates = async () => {
         body.innerHTML = `<div class="field-hint">Checking for the latest VYRO release...</div>`;
         const upd = await api('/api/updates/check').catch(() => ({
-          currentVersion: '1.0.4',
-          latestVersion: '1.0.4',
+          currentVersion: '1.0.5',
+          latestVersion: '1.0.5',
           updateAvailable: false,
           githubOwner: 'moongames0101-cmyk',
           githubRepo: 'vyro',
