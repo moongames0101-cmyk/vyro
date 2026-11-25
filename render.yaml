@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: vyro-chat
+    runtime: node
+    plan: free
+    buildCommand: "echo VYRO ready"
+    startCommand: "node server/index.js"
+    envVars:
+      - key: PORT
+        value: 3847
+    disk:
+      name: vyro-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1

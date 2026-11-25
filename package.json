@@ -1,0 +1,93 @@
+{
+  "name": "vyro",
+  "version": "1.0.6",
+  "author": "moongames0101-cmyk",
+  "description": "VYRO — Discord + Snapchat hybrid chat platform for PC (.exe) and Mobile Android (.apk), distributed & auto-updated via GitHub Releases.",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test tests/api.test.js",
+    "desktop": "electron .",
+    "build:exe": "electron-builder --win nsis portable --x64",
+    "build:apk": "node scripts/build-android.js",
+    "build:all": "npm run build:exe ; npm run build:apk",
+    "build:icons": "powershell -ExecutionPolicy Bypass -File scripts/build-icons.ps1"
+  },
+  "keywords": [
+    "vyro",
+    "chat",
+    "discord",
+    "snapchat",
+    "electron",
+    "pwa",
+    "websocket"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/moongames0101-cmyk/vyro.git"
+  },
+  "build": {
+    "appId": "app.vyro.desktop",
+    "productName": "VYRO",
+    "copyright": "Copyright © 2026 VYRO",
+    "asar": true,
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "package.json",
+      "vyro.config.json",
+      "electron/**/*",
+      "server/**/*",
+      "public/**/*",
+      "assets/**/*"
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "artifactName": "VYRO-Setup-${version}.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "VYRO",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico"
+    },
+    "portable": {
+      "artifactName": "VYRO-${version}-Portable.exe"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "moongames0101-cmyk",
+        "repo": "vyro",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "electron": "^35.1.5",
+    "electron-builder": "^26.0.12"
+  }
+}

@@ -1,0 +1,279 @@
+/* VYRO v1.0.5 — Prismatic Modals, Snap Studio Darkroom, Viewers & Cropper */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 3, 9, 0.8);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.16s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-card {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  max-height: 92vh;
+  overflow-y: auto;
+  background: rgba(13, 15, 28, 0.94);
+  -webkit-backdrop-filter: blur(28px);
+  backdrop-filter: blur(28px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: modalPop 0.2s var(--spring);
+}
+
+.modal-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 14%;
+  right: 14%;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, #8B5CF6, #D946EF, #FACC15, transparent);
+}
+
+.modal-card.wide {
+  max-width: 800px;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-head h3 {
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+/* Snap Studio Darkroom */
+.snap-studio-layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 22px;
+  align-items: start;
+}
+
+.snap-canvas-stage {
+  position: relative;
+  width: 340px;
+  height: 454px;
+  border-radius: 24px;
+  overflow: hidden;
+  background: #070812;
+  border: 2px solid rgba(168, 85, 247, 0.45);
+  box-shadow: var(--shadow-glow), 0 18px 46px rgba(0, 0, 0, 0.65);
+  touch-action: none;
+}
+
+.snap-canvas-stage canvas,
+.snap-canvas-stage video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.snap-caption-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.68);
+  color: #fff;
+  font-weight: 800;
+  font-size: 16px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.snap-controls-col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Theater Snap & Story Viewers */
+.fullscreen-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(139, 92, 246, 0.18), transparent 60%),
+    rgba(2, 2, 7, 0.96);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.viewer-frame {
+  position: relative;
+  width: min(420px, 95vw);
+  height: min(710px, 85vh);
+  border-radius: 26px;
+  overflow: hidden;
+  background: #0B0D1A;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
+  display: flex;
+  flex-direction: column;
+  animation: modalPop 0.2s var(--spring);
+}
+
+.viewer-progress-row {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  right: 12px;
+  z-index: 10;
+  display: flex;
+  gap: 5px;
+}
+
+.viewer-prog-track {
+  flex: 1;
+  height: 3.5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+}
+
+.viewer-prog-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #A855F7, #FACC15);
+  width: 0%;
+  transition: width 0.08s linear;
+}
+
+.viewer-top-bar {
+  position: absolute;
+  top: 22px;
+  left: 14px;
+  right: 14px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.85);
+}
+
+.viewer-media {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.viewer-bottom-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 16px 14px 14px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.9));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 10;
+}
+
+.qr-card {
+  background: #ffffff;
+  padding: 16px;
+  border-radius: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+@media (max-width: 760px) {
+  .snap-studio-layout {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+  .snap-canvas-stage {
+    width: 280px;
+    height: 374px;
+  }
+}
+
+/* Interactive Circular Profile Picture Cropper */
+.vyro-cropper-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 450;
+  background: rgba(3, 3, 9, 0.88);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.14s ease-out;
+}
+
+.vyro-cropper-card {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  max-height: 92vh;
+  overflow-y: auto;
+  background: rgba(13, 15, 28, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 24px;
+  padding: 22px;
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: modalPop 0.2s var(--spring);
+}
+
+.vyro-cropper-stage {
+  position: relative;
+  width: 240px;
+  height: 240px;
+  margin: 0 auto;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid var(--vyro-gold);
+  box-shadow: 0 0 0 6px rgba(139, 92, 246, 0.18), var(--shadow-glow);
+  background: #0F1220;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.vyro-cropper-stage:active {
+  cursor: grabbing;
+}
+
+.vyro-cropper-stage canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}

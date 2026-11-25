@@ -1,0 +1,50 @@
+name: Build and Release VYRO
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    if: github.ref != 'refs/tags/v1.0.0' && github.ref != 'refs/tags/v1.0.1' && github.ref != 'refs/tags/v1.0.2' && github.ref != 'refs/tags/v1.0.3' && github.ref != 'refs/tags/v1.0.4' && github.ref != 'refs/tags/v1.0.5' && github.ref != 'refs/tags/v1.0.6'
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run API & WebSocket tests
+        run: npm test
+
+      - name: Sync GitHub repository metadata for auto-updater
+        shell: pwsh
+        run: |
+          $owner, $repo = "${{ github.repository }}".Split('/')
+          $pkg = Get-Content package.json -Raw | ConvertFrom-Json
+          $pkg.build.publish[0].owner = $owner
+          $pkg.build.publish[0].repo = $repo
+          $pkg | ConvertTo-Json -Depth 10 | Set-Content package.json -Encoding UTF8
+
+          $cfg = Get-Content vyro.config.json -Raw | ConvertFrom-Json
+          $cfg.githubOwner = $owner
+          $cfg.githubRepo = $repo
+          $cfg.version = $pkg.version
+          $cfg | ConvertTo-Json -Depth 5 | Set-Content vyro.config.json -Encoding UTF8
+
+      - name: Build Windows Installer & Portable EXE and Publish to GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win nsis portable --x64 --publish always

@@ -1,0 +1,24 @@
+{
+  "name": "VYRO — Where Servers Meet Streaks",
+  "short_name": "VYRO",
+  "description": "Discord servers & voice lounges combined with Snapchat disappearing snaps, streaks, and 24h stories.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#06060C",
+  "theme_color": "#8B5CF6",
+  "icons": [
+    {
+      "src": "/assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
