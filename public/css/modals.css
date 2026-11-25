@@ -1,0 +1,200 @@
+/* Modals, Snap Studio, Fullscreen Snap & Story Viewers */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 4, 10, 0.78);
+  backdrop-filter: blur(10px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.14s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-card {
+  width: 100%;
+  max-width: 520px;
+  max-height: 92vh;
+  overflow-y: auto;
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  padding: 24px;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-card.wide {
+  max-width: 780px;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-head h3 {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+/* Snap Studio */
+.snap-studio-layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.snap-canvas-stage {
+  position: relative;
+  width: 340px;
+  height: 454px;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: #090A14;
+  border: 2px solid var(--border-strong);
+  box-shadow: var(--shadow-glow);
+  touch-action: none;
+}
+
+.snap-canvas-stage canvas,
+.snap-canvas-stage video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.snap-caption-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.snap-controls-col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Fullscreen Snap & Story Viewer */
+.fullscreen-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(3, 3, 8, 0.96);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.viewer-frame {
+  position: relative;
+  width: min(420px, 95vw);
+  height: min(700px, 84vh);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: #0F1220;
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
+  display: flex;
+  flex-direction: column;
+}
+
+.viewer-progress-row {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  right: 12px;
+  z-index: 10;
+  display: flex;
+  gap: 5px;
+}
+
+.viewer-prog-track {
+  flex: 1;
+  height: 3.5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+}
+
+.viewer-prog-fill {
+  height: 100%;
+  background: var(--vyro-gold);
+  width: 0%;
+  transition: width 0.08s linear;
+}
+
+.viewer-top-bar {
+  position: absolute;
+  top: 22px;
+  left: 14px;
+  right: 14px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+}
+
+.viewer-media {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.viewer-bottom-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 14px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 10;
+}
+
+.qr-card {
+  background: #ffffff;
+  padding: 16px;
+  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+}
+
+@media (max-width: 760px) {
+  .snap-studio-layout {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+  .snap-canvas-stage {
+    width: 280px;
+    height: 374px;
+  }
+}
