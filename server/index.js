@@ -25,7 +25,8 @@ const MIME_TYPES = {
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.ico': 'image/x-icon',
-  '.exe': 'application/octet-stream'
+  '.exe': 'application/octet-stream',
+  '.apk': 'application/vnd.android.package-archive'
 };
 
 function serveStaticFile(res, filePath) {

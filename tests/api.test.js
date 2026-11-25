@@ -104,16 +104,18 @@ test('signup, login, username check, and password reset', async () => {
 });
 
 test('servers, channels, snaps, replay limit, screenshot alert, and stories', async () => {
-  const loginA = await reqJson('/api/auth/login', {
+  const suA = await reqJson('/api/auth/signup', {
     method: 'POST',
-    body: { identifier: 'Nova#0420', password: 'vyro1234' }
+    body: { email: 'user_a@test.dev', username: 'user_a', password: 'password123', displayName: 'UserA' }
   });
-  const loginB = await reqJson('/api/auth/login', {
+  const suB = await reqJson('/api/auth/signup', {
     method: 'POST',
-    body: { identifier: 'Kai#8812', password: 'vyro1234' }
+    body: { email: 'user_b@test.dev', username: 'user_b', password: 'password123', displayName: 'UserB' }
   });
-  const tokenA = loginA.data.token;
-  const tokenB = loginB.data.token;
+  assert.equal(suA.status, 201);
+  assert.equal(suB.status, 201);
+  const tokenA = suA.data.token;
+  const tokenB = suB.data.token;
 
   // Create server + channel
   const srv = await reqJson('/api/servers', {
@@ -181,13 +183,13 @@ test('servers, channels, snaps, replay limit, screenshot alert, and stories', as
   assert.equal(story.status, 201);
 
   const storiesList = await reqJson('/api/stories', { token: tokenB });
-  assert.ok(storiesList.data.storyGroups.some((g) => g.author.id === loginA.data.user.id));
+  assert.ok(storiesList.data.storyGroups.some((g) => g.author.id === suA.data.user.id));
 });
 
 test('RFC 6455 WebSocket handshake and real-time message delivery', async () => {
   const loginA = await reqJson('/api/auth/login', {
     method: 'POST',
-    body: { identifier: 'Nova#0420', password: 'vyro1234' }
+    body: { identifier: 'user_a@test.dev', password: 'password123' }
   });
   const token = loginA.data.token;
   const port = Number(new URL(baseUrl).port);

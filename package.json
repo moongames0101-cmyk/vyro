@@ -1,14 +1,16 @@
 {
   "name": "vyro",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": "moongames0101-cmyk",
-  "description": "VYRO — Discord + Snapchat hybrid chat platform for PC (.exe) and Mobile (PWA), distributed & auto-updated via GitHub Releases.",
+  "description": "VYRO — Discord + Snapchat hybrid chat platform for PC (.exe) and Mobile Android (.apk), distributed & auto-updated via GitHub Releases.",
   "main": "electron/main.js",
   "scripts": {
     "start": "node server/index.js",
     "test": "node --test tests/api.test.js",
     "desktop": "electron .",
     "build:exe": "electron-builder --win nsis portable --x64",
+    "build:apk": "node scripts/build-android.js",
+    "build:all": "npm run build:exe ; npm run build:apk",
     "build:icons": "powershell -ExecutionPolicy Bypass -File scripts/build-icons.ps1"
   },
   "keywords": [

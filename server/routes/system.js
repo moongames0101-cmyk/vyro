@@ -45,8 +45,12 @@ async function handleSystemRoutes({ req, res, pathname, port, configPath, rootDi
     const lanUrls = getLanAddresses(port);
     const distDir = path.join(rootDir, 'dist');
     let localExes = [];
+    let localApks = [];
     try {
-      if (fs.existsSync(distDir)) localExes = fs.readdirSync(distDir).filter((f) => f.toLowerCase().endsWith('.exe'));
+      if (fs.existsSync(distDir)) {
+        localExes = fs.readdirSync(distDir).filter((f) => f.toLowerCase().endsWith('.exe'));
+        localApks = fs.readdirSync(distDir).filter((f) => f.toLowerCase().endsWith('.apk'));
+      }
     } catch {}
 
     return sendJson(res, 200, {
@@ -58,7 +62,8 @@ async function handleSystemRoutes({ req, res, pathname, port, configPath, rootDi
       githubOwner: cfg.githubOwner,
       githubRepo: cfg.githubRepo,
       githubReleasesUrl: `https://github.com/${cfg.githubOwner}/${cfg.githubRepo}/releases`,
-      localExes
+      localExes,
+      localApks
     });
   }
 
@@ -105,6 +110,9 @@ async function handleSystemRoutes({ req, res, pathname, port, configPath, rootDi
       const exeAssets = (rel.assets || [])
         .filter((a) => a.name.toLowerCase().endsWith('.exe'))
         .map((a) => ({ name: a.name, size: a.size, downloadUrl: a.browser_download_url }));
+      const apkAssets = (rel.assets || [])
+        .filter((a) => a.name.toLowerCase().endsWith('.apk'))
+        .map((a) => ({ name: a.name, size: a.size, downloadUrl: a.browser_download_url }));
 
       return sendJson(res, 200, {
         configured: true,
@@ -117,7 +125,8 @@ async function handleSystemRoutes({ req, res, pathname, port, configPath, rootDi
         releaseNotes: rel.body || '',
         publishedAt: rel.published_at || '',
         releasesPage: rel.html_url || releasesPage,
-        exeAssets
+        exeAssets,
+        apkAssets
       });
     } catch {
       return sendJson(res, 200, {

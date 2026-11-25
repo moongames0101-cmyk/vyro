@@ -6,13 +6,13 @@ import {
   ICONS,
   OUTFIT_COLORS,
   SKIN_TONES,
+  cropAndCompressAvatar,
   renderAvatarHtml,
   renderBitmojiSvg
 } from '../icons.js';
 import { escapeHtml, setState, state, toast } from '../state.js';
 import { renderQrSvg } from '../utils/qr.js';
 
-let demoUsersCache = [];
 let networkInfoCache = null;
 
 const signupDraft = {
@@ -54,15 +54,6 @@ function calcPasswordStrength(pw) {
 export async function mountAuthPortal(container, onSignedIn) {
   const tab = state.authTab || 'login';
 
-  // Fetch demo accounts & network info silently
-  if (demoUsersCache.length === 0) {
-    api('/api/auth/demo-users').then((res) => {
-      demoUsersCache = res.users || [];
-      const box = container.querySelector('#demo-users-slot');
-      if (box) box.innerHTML = renderDemoUsersButtons();
-      wireDemoButtons(container, onSignedIn);
-    }).catch(() => {});
-  }
 
   if (tab === 'download') {
     renderDownloadView(container);
@@ -206,41 +197,6 @@ export async function mountAuthPortal(container, onSignedIn) {
   else renderLoginArea(area, container, onSignedIn);
 }
 
-function renderDemoUsersButtons() {
-  if (!demoUsersCache.length) return '<div class="field-hint">Loading demo profiles...</div>';
-  return demoUsersCache
-    .map(
-      (u) => `
-    <button type="button" class="demo-user-btn" data-demo-email="${escapeHtml(u.email)}">
-      ${renderAvatarHtml(u, 34, true)}
-      <span>${escapeHtml(u.displayName)}</span>
-      <span class="tag">#${escapeHtml(u.discriminator)}</span>
-    </button>
-  `
-    )
-    .join('');
-}
-
-function wireDemoButtons(root, onSignedIn) {
-  root.querySelectorAll('.demo-user-btn').forEach((btn) => {
-    btn.onclick = async () => {
-      const email = btn.dataset.demoEmail;
-      try {
-        const res = await api('/api/auth/login', {
-          method: 'POST',
-          body: { identifier: email, password: 'vyro1234', remember: true }
-        });
-        setToken(res.token);
-        saveRememberedAccount(res.user, res.token);
-        toast(`Signed in as ${res.user.displayName}#${res.user.discriminator}`, 'success');
-        onSignedIn(res.user);
-      } catch (err) {
-        toast(err.message, 'error');
-      }
-    };
-  });
-}
-
 function renderSavedAccountsSection() {
   const saved = getSavedAccounts();
   if (!saved.length) return '';
@@ -275,7 +231,7 @@ function renderLoginArea(area, root, onSignedIn) {
     <form id="login-form" class="form-grid">
       <div class="field">
         <label>Email or Username#Tag</label>
-        <input class="input-control" id="login-id" placeholder="nova@vyro.app or Nova#0420" autocomplete="username" required />
+        <input class="input-control" id="login-id" placeholder="your_username or you@example.com" autocomplete="username" required />
       </div>
       <div class="field">
         <label>
@@ -294,14 +250,7 @@ function renderLoginArea(area, root, onSignedIn) {
     </form>
 
     ${renderSavedAccountsSection()}
-
-    <div class="demo-accounts-box">
-      <div class="demo-accounts-title">Instant Test Accounts (Password: vyro1234)</div>
-      <div class="demo-users-grid" id="demo-users-slot">${renderDemoUsersButtons()}</div>
-    </div>
   `;
-
-  wireDemoButtons(root, onSignedIn);
 
   area.querySelectorAll('.saved-acct-btn').forEach((btn) => {
     btn.onclick = async () => {
@@ -714,16 +663,17 @@ function renderSignupArea(area, root, onSignedIn) {
   });
 
   const fileInput = stepBody.querySelector('#su-av-file');
-  fileInput.onchange = () => {
+  fileInput.onchange = async () => {
     const f = fileInput.files?.[0];
     if (!f) return;
-    const reader = new FileReader();
-    reader.onload = () => {
+    try {
+      const dataUrl = await cropAndCompressAvatar(f, 256);
       signupDraft.avatarType = 'image';
-      signupDraft.avatarUrl = reader.result;
+      signupDraft.avatarUrl = dataUrl;
       refreshStep3();
-    };
-    reader.readAsDataURL(f);
+    } catch {
+      toast('Could not process photo', 'error');
+    }
   };
 
   const resetBtn = stepBody.querySelector('#su-av-reset');
@@ -834,6 +784,13 @@ async function renderDownloadView(container) {
       .map((a) => `<a class="btn btn-primary" href="${escapeHtml(a.downloadUrl)}" target="_blank" rel="noopener">${ICONS.download} ${escapeHtml(a.name)}</a>`)
       .join('');
 
+    const localApkButtons = (net.localApks || [])
+      .map((apk) => `<a class="btn btn-primary" href="/downloads/${encodeURIComponent(apk)}" download>${ICONS.download} Download ${escapeHtml(apk)} (Android)</a>`)
+      .join('');
+    const ghApkButtons = (upd.apkAssets || [])
+      .map((a) => `<a class="btn btn-primary" href="${escapeHtml(a.downloadUrl)}" target="_blank" rel="noopener">${ICONS.download} Download ${escapeHtml(a.name)} (Android APK)</a>`)
+      .join('');
+
     cards.innerHTML = `
       <div class="download-card">
         <div style="display:flex;align-items:center;gap:12px;">
@@ -857,9 +814,29 @@ async function renderDownloadView(container) {
       </div>
 
       <div class="download-card">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="font-size:32px;">🤖</div>
+          <div>
+            <h3 style="font-size:18px;">Android Mobile (.apk)</h3>
+            <span class="field-hint">Standalone App • 1-Click Install for Android</span>
+          </div>
+        </div>
+        <p style="color:var(--text-secondary);font-size:13px;">
+          Direct download Android APK package. Install directly on any Android phone with native camera, microphone, snaps, and live server sync!
+        </p>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${localApkButtons || `<a class="btn btn-primary" href="/downloads/VYRO.apk" download>${ICONS.download} Download VYRO.apk</a>`}
+          ${ghApkButtons}
+          <a class="btn btn-secondary" href="https://github.com/${escapeHtml(net.githubOwner)}/${escapeHtml(net.githubRepo)}/releases" target="_blank" rel="noopener">
+            🤖 View Android APK on GitHub Releases
+          </a>
+        </div>
+      </div>
+
+      <div class="download-card">
         <div>
-          <h3 style="font-size:18px;">📱 Mobile (iOS &amp; Android)</h3>
-          <span class="field-hint">Scan with your phone camera on the same Wi-Fi, or install as a PWA!</span>
+          <h3 style="font-size:18px;">📱 Mobile Web &amp; QR Sync</h3>
+          <span class="field-hint">Scan with your phone camera on Wi-Fi, or install on iPhone/iPad!</span>
         </div>
         <div class="qr-card">${renderQrSvg(mobileUrl, 176)}</div>
         <div style="font-family:var(--font-mono);font-size:12px;text-align:center;color:var(--vyro-gold);word-break:break-all;">
@@ -868,7 +845,7 @@ async function renderDownloadView(container) {
         ${state.deferredInstallPrompt ? `<button class="btn btn-primary" id="pwa-install-btn">📲 Install VYRO App on This Device</button>` : ''}
         <p class="field-hint">
           iPhone Safari: Tap <strong>Share → Add to Home Screen</strong>.<br/>
-          Android Chrome: Tap <strong>Menu → Install App</strong>.
+          Android: Download the <strong>.apk</strong> above or install in Chrome.
         </p>
       </div>
     `;

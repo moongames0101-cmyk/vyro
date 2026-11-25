@@ -14,6 +14,31 @@ export const HAIR_STYLES = ['short', 'bob', 'curly', 'spiky', 'beanie', 'bolt'];
 export const EYE_STYLES = ['happy', 'wink', 'shades', 'star', 'chill'];
 export const OUTFIT_COLORS = ['#6D28D9', '#0369A1', '#B45309', '#BE185D', '#047857', '#1E1B4B'];
 
+export function cropAndCompressAvatar(file, maxSize = 256) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = maxSize;
+        canvas.height = maxSize;
+        const ctx = canvas.getContext('2d');
+        const minDim = Math.min(img.width, img.height);
+        // Face/portrait bias: if image is portrait, crop slightly towards top (15%) so heads/faces are centered and not cut off
+        const sx = img.width > img.height ? (img.width - minDim) / 2 : 0;
+        const sy = img.height > img.width ? Math.min((img.height - minDim) * 0.25, img.height * 0.15) : 0;
+        ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, maxSize, maxSize);
+        resolve(canvas.toDataURL('image/jpeg', 0.88));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export function renderBitmojiSvg(cfg = {}) {
   const c = {
     bg: cfg.bg || AVATAR_GRADIENTS[0],
@@ -27,48 +52,48 @@ export function renderBitmojiSvg(cfg = {}) {
 
   let hairPath = '';
   if (c.hair === 'short') {
-    hairPath = `<path d="M24 44 C24 21, 76 21, 76 44 C70 34, 30 34, 24 44 Z" fill="#1E1B2E"/>`;
+    hairPath = `<path d="M26 44 C26 23, 74 23, 74 44 C68 35, 32 35, 26 44 Z" fill="#1E1B2E"/>`;
   } else if (c.hair === 'bob') {
-    hairPath = `<path d="M20 62 C20 18, 80 18, 80 62 L73 68 C73 36, 27 36, 27 68 Z" fill="#1E1B2E"/>`;
+    hairPath = `<path d="M23 60 C23 22, 77 22, 77 60 L71 65 C71 36, 29 36, 29 65 Z" fill="#1E1B2E"/>`;
   } else if (c.hair === 'curly') {
-    hairPath = `<g fill="#1E1B2E"><circle cx="30" cy="30" r="10"/><circle cx="44" cy="24" r="11"/><circle cx="58" cy="24" r="11"/><circle cx="70" cy="31" r="10"/><circle cx="24" cy="42" r="8"/><circle cx="76" cy="42" r="8"/></g>`;
+    hairPath = `<g fill="#1E1B2E"><circle cx="32" cy="32" r="9"/><circle cx="44" cy="26" r="10"/><circle cx="56" cy="26" r="10"/><circle cx="68" cy="33" r="9"/><circle cx="27" cy="42" r="7"/><circle cx="73" cy="42" r="7"/></g>`;
   } else if (c.hair === 'spiky') {
-    hairPath = `<path d="M24 42 L26 23 L38 30 L50 15 L62 30 L74 22 L76 42 C66 34, 34 34, 24 42 Z" fill="#1E1B2E"/>`;
+    hairPath = `<path d="M26 42 L28 26 L38 31 L50 19 L62 31 L72 25 L74 42 C65 35, 35 35, 26 42 Z" fill="#1E1B2E"/>`;
   } else if (c.hair === 'beanie') {
-    hairPath = `<path d="M24 41 C26 18, 74 18, 76 41 Z" fill="${c.accent}"/><rect x="22" y="36" width="56" height="9" rx="4.5" fill="#181826"/>`;
+    hairPath = `<path d="M26 41 C28 22, 72 22, 74 41 Z" fill="${c.accent}"/><rect x="24" y="37" width="52" height="8" rx="4" fill="#181826"/>`;
   } else if (c.hair === 'bolt') {
-    hairPath = `<path d="M52 14 L38 36 L50 36 L44 54 L63 31 L50 31 Z" fill="#0F172A" opacity="0.22"/>`;
+    hairPath = `<path d="M52 18 L40 37 L50 37 L45 52 L61 33 L50 33 Z" fill="#0F172A" opacity="0.25"/>`;
   }
 
   let eyesSvg = '';
   if (c.eyes === 'shades') {
     eyesSvg = `
-      <rect x="30" y="45" width="17" height="10" rx="3" fill="#090910"/>
-      <rect x="53" y="45" width="17" height="10" rx="3" fill="#090910"/>
-      <line x1="47" y1="49" x2="53" y2="49" stroke="#090910" stroke-width="2.5"/>
-      <line x1="33" y1="48" x2="39" y2="48" stroke="#FACC15" stroke-width="1.5"/>
+      <rect x="32" y="46" width="15" height="9" rx="3" fill="#090910"/>
+      <rect x="53" y="46" width="15" height="9" rx="3" fill="#090910"/>
+      <line x1="47" y1="50" x2="53" y2="50" stroke="#090910" stroke-width="2.2"/>
+      <line x1="35" y1="49" x2="41" y2="49" stroke="#FACC15" stroke-width="1.3"/>
     `;
   } else if (c.eyes === 'wink') {
     eyesSvg = `
-      <circle cx="39" cy="50" r="3.4" fill="#0F172A"/>
-      <path d="M55 50 Q61 46 66 50" stroke="#0F172A" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+      <circle cx="40" cy="50" r="3.2" fill="#0F172A"/>
+      <path d="M55 50 Q60 46 65 50" stroke="#0F172A" stroke-width="2.4" fill="none" stroke-linecap="round"/>
     `;
   } else if (c.eyes === 'star') {
     eyesSvg = `
-      <text x="39" y="54" text-anchor="middle" font-size="11" fill="#8B5CF6">★</text>
-      <text x="61" y="54" text-anchor="middle" font-size="11" fill="#8B5CF6">★</text>
+      <text x="40" y="54" text-anchor="middle" font-size="10.5" fill="#8B5CF6">★</text>
+      <text x="60" y="54" text-anchor="middle" font-size="10.5" fill="#8B5CF6">★</text>
     `;
   } else if (c.eyes === 'chill') {
     eyesSvg = `
-      <line x1="34" y1="49" x2="43" y2="49" stroke="#0F172A" stroke-width="2.6" stroke-linecap="round"/>
-      <line x1="57" y1="49" x2="66" y2="49" stroke="#0F172A" stroke-width="2.6" stroke-linecap="round"/>
+      <line x1="35" y1="50" x2="43" y2="50" stroke="#0F172A" stroke-width="2.4" stroke-linecap="round"/>
+      <line x1="57" y1="50" x2="65" y2="50" stroke="#0F172A" stroke-width="2.4" stroke-linecap="round"/>
     `;
   } else {
     eyesSvg = `
-      <circle cx="39" cy="49" r="3.3" fill="#0F172A"/>
-      <circle cx="61" cy="49" r="3.3" fill="#0F172A"/>
-      <circle cx="40.2" cy="47.8" r="1" fill="#fff"/>
-      <circle cx="62.2" cy="47.8" r="1" fill="#fff"/>
+      <circle cx="40" cy="50" r="3.2" fill="#0F172A"/>
+      <circle cx="60" cy="50" r="3.2" fill="#0F172A"/>
+      <circle cx="41.2" cy="48.8" r="1" fill="#fff"/>
+      <circle cx="61.2" cy="48.8" r="1" fill="#fff"/>
     `;
   }
 
@@ -81,11 +106,13 @@ export function renderBitmojiSvg(cfg = {}) {
     </defs>
     <rect width="100" height="100" fill="#131629"/>
     <rect width="100" height="100" fill="url(#avBg)"/>
-    <path d="M18 100 C18 74, 82 74, 82 100 Z" fill="${escapeHtml(c.outfit)}"/>
-    <circle cx="50" cy="50" r="24" fill="${escapeHtml(c.skin)}"/>
-    ${hairPath}
-    ${eyesSvg}
-    <path d="M41 61 Q50 67 59 61" stroke="#0F172A" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <g transform="translate(0, 1)">
+      <path d="M16 100 C16 72, 84 72, 84 100 Z" fill="${escapeHtml(c.outfit)}"/>
+      <circle cx="50" cy="52" r="22" fill="${escapeHtml(c.skin)}"/>
+      ${hairPath}
+      ${eyesSvg}
+      <path d="M42 62 Q50 67 58 62" stroke="#0F172A" stroke-width="2.3" fill="none" stroke-linecap="round"/>
+    </g>
   </svg>`;
 }
 

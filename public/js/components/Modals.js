@@ -6,6 +6,7 @@ import {
   ICONS,
   OUTFIT_COLORS,
   SKIN_TONES,
+  cropAndCompressAvatar,
   renderAvatarHtml,
   renderBitmojiSvg
 } from '../icons.js';
@@ -231,7 +232,7 @@ export function openAddFriendModal(onRefresh) {
       <button class="btn-ghost btn-sm" id="m-close">✕</button>
     </div>
     <form id="fr-add-form" style="display:flex;gap:8px;">
-      <input class="input-control" id="fr-target" placeholder="Username or Name#0000 (e.g. Kai#8812)" required />
+      <input class="input-control" id="fr-target" placeholder="Username or Name#0000" required />
       <button type="submit" class="btn btn-primary">Send Request</button>
     </form>
     <div class="field">
@@ -487,16 +488,17 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
             renderProfile();
           };
         });
-        body.querySelector('#st-av-file').onchange = (e) => {
+        body.querySelector('#st-av-file').onchange = async (e) => {
           const f = e.target.files?.[0];
           if (!f) return;
-          const r = new FileReader();
-          r.onload = () => {
+          try {
+            const dataUrl = await cropAndCompressAvatar(f, 256);
             avatarType = 'image';
-            avatarUrl = r.result;
+            avatarUrl = dataUrl;
             renderProfile();
-          };
-          r.readAsDataURL(f);
+          } catch {
+            toast('Could not process photo', 'error');
+          }
         };
         body.querySelector('#st-logout').onclick = () => {
           closeModal();
