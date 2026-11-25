@@ -16,12 +16,16 @@ function getLanAddresses(port) {
   const urls = [];
   for (const [name, list] of Object.entries(ifaces)) {
     for (const addr of list || []) {
-      if (addr.family === 'IPv4' && !addr.internal) {
-        urls.push({ interface: name, ip: addr.address, url: `http://${addr.address}:${port}` });
+      if (addr.family === 'IPv4' && !addr.internal && !addr.address.startsWith('169.254.')) {
+        const virtual = /vethernet|virtualbox|vmware|wsl|hyper-v|docker|loopback|tailscale|zerotier/i.test(name);
+        const privateLan = addr.address.startsWith('192.168.') || addr.address.startsWith('10.');
+        const score = (virtual ? 0 : 10) + (privateLan ? 5 : 0);
+        urls.push({ interface: name, ip: addr.address, url: `http://${addr.address}:${port}`, score });
       }
     }
   }
-  return urls;
+  urls.sort((a, b) => b.score - a.score);
+  return urls.map(({ interface: iface, ip, url }) => ({ interface: iface, ip, url }));
 }
 
 function compareSemver(a, b) {
@@ -44,7 +48,7 @@ async function handleSystemRoutes({ req, res, pathname, port, configPath, rootDi
     const cfg = loadConfig(configPath);
     const lanUrls = getLanAddresses(port);
     const distDir = path.join(rootDir, 'dist');
-    const ver = cfg.version || '1.0.5';
+    const ver = cfg.version || '1.0.6';
     let localExes = [];
     let localApks = [];
     try {

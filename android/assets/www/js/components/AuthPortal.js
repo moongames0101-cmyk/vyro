@@ -1,4 +1,18 @@
-import { api, getSavedAccounts, getServerUrl, removeSavedAccount, saveRememberedAccount, setServerUrl, setToken } from '../api.js';
+import {
+  api,
+  discoverLanServers,
+  getApkLocalIps,
+  getSavedAccounts,
+  getServerUrl,
+  isApkMode,
+  isApkUnconfigured,
+  normalizeServerUrl,
+  probeServerHealth,
+  removeSavedAccount,
+  saveRememberedAccount,
+  saveServerUrl,
+  setToken
+} from '../api.js';
 import { openAvatarCropperModal } from './AvatarCropper.js';
 import {
   AVATAR_GRADIENTS,
@@ -14,6 +28,13 @@ import { escapeHtml, setState, state, toast } from '../state.js';
 import { renderQrSvg } from '../utils/qr.js';
 
 let networkInfoCache = null;
+
+const apkConnectUi = {
+  expanded: false,
+  scanning: false,
+  error: '',
+  discovered: []
+};
 
 const signupDraft = {
   step: 1,
@@ -49,6 +70,152 @@ function calcPasswordStrength(pw) {
   if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
   if (/[0-9]/.test(pw) || /[^A-Za-z0-9]/.test(pw)) score++;
   return Math.min(4, score);
+}
+
+function renderApkConnectHtml() {
+  if (!isApkMode()) return '';
+  const serverUrl = getServerUrl();
+  const localIps = getApkLocalIps();
+  const showPanel = !serverUrl || apkConnectUi.expanded;
+
+  if (!showPanel) {
+    return `
+      <div class="apk-connect-panel connected">
+        <div class="apk-connect-header">
+          <span class="apk-connect-badge"><span class="apk-connect-dot"></span> Server: ${escapeHtml(serverUrl)}</span>
+          <button type="button" class="btn btn-secondary btn-sm" id="apk-change-srv-btn">Switch</button>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="apk-connect-panel" id="apk-connect-panel">
+      <div class="apk-connect-header">
+        <span class="apk-connect-badge"><span class="apk-connect-dot"></span> ${serverUrl ? 'Switch VYRO Server' : 'Connect to Your VYRO Server'}</span>
+        ${serverUrl ? '<button type="button" class="btn-ghost btn-sm" id="apk-hide-srv-btn">Done</button>' : ''}
+      </div>
+      <div class="field-hint" style="line-height:1.45;">
+        Keep VYRO running on your PC (same Wi-Fi) and tap <strong>Scan Wi-Fi</strong>, or enter your PC / hosted VYRO server URL.
+      </div>
+      ${apkConnectUi.error ? `<div class="auth-error-banner" style="margin:0;">${escapeHtml(apkConnectUi.error)}</div>` : ''}
+      ${
+        apkConnectUi.discovered.length
+          ? `<div class="apk-discovered-list">
+              ${apkConnectUi.discovered
+                .map(
+                  (srv) => `<button type="button" class="apk-server-chip" data-pick-server="${escapeHtml(srv.url)}">⚡ ${escapeHtml(srv.host)}:${escapeHtml(srv.port)}${srv.version ? ` (v${escapeHtml(srv.version)})` : ''}</button>`
+                )
+                .join('')}
+            </div>`
+          : ''
+      }
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <input class="input-control" id="apk-server-input" style="flex:1;min-width:170px;padding:8px 10px;font-size:12.5px;" placeholder="192.168.0.x:3847 or https://..." value="${escapeHtml(serverUrl)}" />
+        <button type="button" class="btn btn-primary btn-sm" id="apk-connect-btn">Connect</button>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <button type="button" class="btn btn-secondary btn-sm" id="apk-scan-btn" ${apkConnectUi.scanning ? 'disabled' : ''}>
+          ${apkConnectUi.scanning ? 'Scanning Wi-Fi...' : '🔍 Scan Wi-Fi for PC'}
+        </button>
+        ${localIps.length ? `<span class="field-hint">Wi-Fi IP: ${escapeHtml(localIps[0])}</span>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function refreshApkConnectSlot(container, onSignedIn) {
+  const slot = container?.querySelector('#apk-connect-slot');
+  if (!slot) return;
+  slot.innerHTML = renderApkConnectHtml();
+  wireApkConnectHandlers(container, onSignedIn);
+}
+
+function wireApkConnectHandlers(container, onSignedIn) {
+  if (!isApkMode()) return;
+  const slot = container?.querySelector('#apk-connect-slot');
+  if (!slot) return;
+
+  slot.querySelector('#apk-change-srv-btn')?.addEventListener('click', () => {
+    apkConnectUi.expanded = true;
+    apkConnectUi.error = '';
+    refreshApkConnectSlot(container, onSignedIn);
+  });
+
+  slot.querySelector('#apk-hide-srv-btn')?.addEventListener('click', () => {
+    apkConnectUi.expanded = false;
+    apkConnectUi.error = '';
+    refreshApkConnectSlot(container, onSignedIn);
+  });
+
+  const connectToUrl = async (raw) => {
+    const check = normalizeServerUrl(raw);
+    if (!check.valid || !check.url) {
+      apkConnectUi.error = 'Enter a valid server address (e.g. 192.168.0.10:3847 or https://your-vyro.onrender.com).';
+      refreshApkConnectSlot(container, onSignedIn);
+      return;
+    }
+    const btn = slot.querySelector('#apk-connect-btn');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Connecting...';
+    }
+    const probe = await probeServerHealth(check.url, 3000);
+    if (!probe.ok) {
+      apkConnectUi.error = probe.error;
+      refreshApkConnectSlot(container, onSignedIn);
+      return;
+    }
+    await saveServerUrl(probe.url);
+    apkConnectUi.expanded = false;
+    apkConnectUi.error = '';
+    toast(`Connected to VYRO at ${probe.url}`, 'success');
+    refreshApkConnectSlot(container, onSignedIn);
+  };
+
+  slot.querySelector('#apk-connect-btn')?.addEventListener('click', () => {
+    const val = slot.querySelector('#apk-server-input')?.value || '';
+    connectToUrl(val);
+  });
+
+  slot.querySelectorAll('[data-pick-server]').forEach((chip) => {
+    chip.addEventListener('click', () => connectToUrl(chip.dataset.pickServer));
+  });
+
+  slot.querySelector('#apk-scan-btn')?.addEventListener('click', async () => {
+    apkConnectUi.scanning = true;
+    apkConnectUi.error = '';
+    refreshApkConnectSlot(container, onSignedIn);
+    const res = await discoverLanServers();
+    apkConnectUi.scanning = false;
+    apkConnectUi.discovered = res.found || [];
+    if (apkConnectUi.discovered.length === 1) {
+      await saveServerUrl(apkConnectUi.discovered[0].url);
+      apkConnectUi.expanded = false;
+      toast(`Found & connected to ${apkConnectUi.discovered[0].url}`, 'success');
+    } else if (apkConnectUi.discovered.length > 1) {
+      apkConnectUi.error = '';
+      toast(`Found ${apkConnectUi.discovered.length} VYRO servers — tap one to connect.`, 'info');
+    } else {
+      apkConnectUi.error = 'No VYRO server found on Wi-Fi. Open VYRO on your PC (same Wi-Fi) or enter your server URL above.';
+    }
+    refreshApkConnectSlot(container, onSignedIn);
+  });
+}
+
+function handleServerConnectionError(err, showErr, rootContainer, onSignedIn) {
+  const msg = err?.message || 'Could not reach VYRO server.';
+  showErr(msg);
+  if (isApkMode() && (err?.code === 'NO_SERVER_CONFIGURED' || err?.code === 'SERVER_UNREACHABLE' || err?.status === 404)) {
+    apkConnectUi.expanded = true;
+    apkConnectUi.error = msg;
+    refreshApkConnectSlot(rootContainer, onSignedIn);
+    const input = rootContainer?.querySelector('#apk-server-input');
+    input?.focus();
+    toast(msg, 'error');
+    return true;
+  }
+  return false;
 }
 
 export async function mountAuthPortal(container, onSignedIn) {
@@ -137,22 +304,27 @@ export async function mountAuthPortal(container, onSignedIn) {
         </section>
 
         <section class="auth-card">
+          <div id="apk-connect-slot">${renderApkConnectHtml()}</div>
           <div class="auth-tabs">
             <button class="auth-tab ${tab === 'login' ? 'active' : ''}" data-auth-tab="login">Log In</button>
             <button class="auth-tab ${tab === 'signup' ? 'active' : ''}" data-auth-tab="signup">Create Account</button>
           </div>
           <div id="auth-form-area"></div>
 
-          <div class="server-node-footer">
-            <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--text-muted);">
-              <span>🌐 Server: <strong style="color:var(--text-secondary);">${escapeHtml(getServerUrl() || location.origin)}</strong></span>
-              <button type="button" class="btn-ghost btn-sm" id="toggle-server-node">Switch Server</button>
-            </div>
-            <div id="server-node-editor" class="hidden" style="display:flex;gap:8px;margin-top:4px;">
-              <input class="input-control" id="custom-server-input" placeholder="https://your-vyro-server.com (blank = local)" value="${escapeHtml(getServerUrl())}" style="padding:8px 10px;font-size:12.5px;" />
-              <button type="button" class="btn btn-secondary btn-sm" id="save-server-btn">Connect</button>
-            </div>
-          </div>
+          ${
+            !isApkMode()
+              ? `<div class="server-node-footer">
+                  <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--text-muted);gap:8px;flex-wrap:wrap;">
+                    <span>🌐 Server: <strong style="color:var(--text-secondary);">${escapeHtml(getServerUrl() || location.origin)}</strong></span>
+                    <button type="button" class="btn-ghost btn-sm" id="toggle-server-node">Switch Server</button>
+                  </div>
+                  <div id="server-node-editor" class="hidden" style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;">
+                    <input class="input-control" id="custom-server-input" placeholder="192.168.0.x:3847 or https://... (blank = local)" value="${escapeHtml(getServerUrl())}" style="flex:1;min-width:160px;padding:8px 10px;font-size:12.5px;" />
+                    <button type="button" class="btn btn-secondary btn-sm" id="save-server-btn">Connect</button>
+                  </div>
+                </div>`
+              : ''
+          }
         </section>
       </main>
     </div>
@@ -161,6 +333,8 @@ export async function mountAuthPortal(container, onSignedIn) {
   container.querySelector('#auth-win-min')?.addEventListener('click', (e) => { e.stopPropagation(); window.vyroDesktop?.minimize(); });
   container.querySelector('#auth-win-max')?.addEventListener('click', (e) => { e.stopPropagation(); window.vyroDesktop?.maximize(); });
   container.querySelector('#auth-win-close')?.addEventListener('click', (e) => { e.stopPropagation(); window.vyroDesktop?.close(); });
+
+  wireApkConnectHandlers(container, onSignedIn);
 
   container.querySelector('#auth-logo-home').onclick = () => {
     setState({ authTab: 'login' });
@@ -188,19 +362,45 @@ export async function mountAuthPortal(container, onSignedIn) {
   });
 
   const nodeEditor = container.querySelector('#server-node-editor');
-  container.querySelector('#toggle-server-node').onclick = () => {
-    nodeEditor.classList.toggle('hidden');
-  };
-  container.querySelector('#save-server-btn').onclick = () => {
-    const val = container.querySelector('#custom-server-input').value;
-    setServerUrl(val);
-    toast(val ? `Switched server to ${val}` : 'Using local VYRO server', 'success');
-    mountAuthPortal(container, onSignedIn);
-  };
+  const toggleBtn = container.querySelector('#toggle-server-node');
+  if (nodeEditor && toggleBtn) {
+    toggleBtn.onclick = () => {
+      nodeEditor.classList.toggle('hidden');
+    };
+  }
+  const saveSrvBtn = container.querySelector('#save-server-btn');
+  if (saveSrvBtn) {
+    saveSrvBtn.onclick = async () => {
+      const val = container.querySelector('#custom-server-input').value.trim();
+      if (!val) {
+        await saveServerUrl('');
+        toast('Using local VYRO server', 'success');
+        mountAuthPortal(container, onSignedIn);
+        return;
+      }
+      const check = normalizeServerUrl(val);
+      if (!check.valid || !check.url) {
+        toast('Invalid server URL. Example: 192.168.0.10:3847 or https://vyro.onrender.com', 'error');
+        return;
+      }
+      saveSrvBtn.disabled = true;
+      saveSrvBtn.textContent = 'Checking...';
+      const probe = await probeServerHealth(check.url, 3000);
+      if (!probe.ok) {
+        saveSrvBtn.disabled = false;
+        saveSrvBtn.textContent = 'Connect';
+        toast(probe.error, 'error');
+        return;
+      }
+      await saveServerUrl(probe.url);
+      toast(`Switched server to ${probe.url}`, 'success');
+      mountAuthPortal(container, onSignedIn);
+    };
+  }
 
   const area = container.querySelector('#auth-form-area');
   if (tab === 'signup') renderSignupArea(area, container, onSignedIn);
-  else if (tab === 'reset') renderResetArea(area);
+  else if (tab === 'reset') renderResetArea(area, container, onSignedIn);
   else renderLoginArea(area, container, onSignedIn);
 }
 
@@ -299,7 +499,7 @@ function renderLoginArea(area, root, onSignedIn) {
 
   area.querySelector('#goto-reset-btn').onclick = () => {
     setState({ authTab: 'reset' });
-    renderResetArea(area);
+    renderResetArea(area, root, onSignedIn);
   };
 
   area.querySelector('#login-form').onsubmit = async (e) => {
@@ -307,6 +507,15 @@ function renderLoginArea(area, root, onSignedIn) {
     const errEl = area.querySelector('#login-error');
     const btn = area.querySelector('#login-submit-btn');
     errEl.classList.add('hidden');
+    if (isApkUnconfigured()) {
+      handleServerConnectionError(
+        { code: 'NO_SERVER_CONFIGURED', message: 'Connect to a VYRO server above first (tap Scan Wi-Fi or enter your server URL).' },
+        (m) => { errEl.textContent = m; errEl.classList.remove('hidden'); },
+        root,
+        onSignedIn
+      );
+      return;
+    }
     btn.disabled = true;
     btn.textContent = 'Signing in...';
     try {
@@ -325,15 +534,19 @@ function renderLoginArea(area, root, onSignedIn) {
       toast(`Welcome back, ${res.user.displayName}!`, 'success');
       onSignedIn(res.user);
     } catch (err) {
-      errEl.textContent = err.message;
-      errEl.classList.remove('hidden');
+      handleServerConnectionError(
+        err,
+        (m) => { errEl.textContent = m; errEl.classList.remove('hidden'); },
+        root,
+        onSignedIn
+      );
       btn.disabled = false;
       btn.textContent = 'Log In to VYRO ⚡';
     }
   };
 }
 
-function renderResetArea(area) {
+function renderResetArea(area, root, onSignedIn) {
   area.innerHTML = `
     <div class="auth-card-title">Reset Password</div>
     <div class="auth-card-sub">Recover access using your username/email and recovery phrase.</div>
@@ -366,6 +579,15 @@ function renderResetArea(area) {
   area.querySelector('#reset-form').onsubmit = async (e) => {
     e.preventDefault();
     const msg = area.querySelector('#reset-msg');
+    if (isApkUnconfigured()) {
+      handleServerConnectionError(
+        { code: 'NO_SERVER_CONFIGURED', message: 'Connect to a VYRO server above first (tap Scan Wi-Fi or enter your server URL).' },
+        (m) => { msg.className = 'auth-error-banner'; msg.textContent = m; msg.classList.remove('hidden'); },
+        root,
+        onSignedIn
+      );
+      return;
+    }
     try {
       const res = await api('/api/auth/reset-password', {
         method: 'POST',
@@ -381,8 +603,12 @@ function renderResetArea(area) {
       toast('Password updated! Log in now.', 'success');
     } catch (err) {
       msg.className = 'auth-error-banner';
-      msg.textContent = err.message;
-      msg.classList.remove('hidden');
+      handleServerConnectionError(
+        err,
+        (m) => { msg.textContent = m; msg.classList.remove('hidden'); },
+        root,
+        onSignedIn
+      );
     }
   };
 }
@@ -459,6 +685,11 @@ function renderSignupArea(area, root, onSignedIn) {
         statusEl.textContent = '';
         return;
       }
+      if (isApkUnconfigured()) {
+        statusEl.textContent = 'Connect server above first';
+        statusEl.className = 'field-hint err';
+        return;
+      }
       debounceTimer = setTimeout(async () => {
         try {
           const check = await api(`/api/auth/check-username?username=${encodeURIComponent(val)}`);
@@ -466,12 +697,25 @@ function renderSignupArea(area, root, onSignedIn) {
           signupDraft.usernameMsg = check.reason;
           statusEl.textContent = check.available ? '✓ Available' : check.reason;
           statusEl.className = `field-hint ${check.available ? 'ok' : 'err'}`;
-        } catch {}
+        } catch (err) {
+          if (err?.code === 'NO_SERVER_CONFIGURED' || err?.code === 'SERVER_UNREACHABLE') {
+            statusEl.textContent = 'Server offline';
+            statusEl.className = 'field-hint err';
+          }
+        }
       }, 240);
+    };
+
+    const emailInput = stepBody.querySelector('#su-email');
+    emailInput.oninput = () => {
+      signupDraft.email = emailInput.value.trim();
     };
 
     const pwEl = stepBody.querySelector('#su-pw');
     const pw2El = stepBody.querySelector('#su-pw2');
+    pw2El.oninput = () => {
+      signupDraft.confirmPassword = pw2El.value;
+    };
     stepBody.querySelector('#su-eye').onclick = () => {
       const show = pwEl.type === 'password';
       pwEl.type = show ? 'text' : 'password';
@@ -499,10 +743,25 @@ function renderSignupArea(area, root, onSignedIn) {
       if (signupDraft.password.length < 6) return showErr('Password must be at least 6 characters.');
       if (signupDraft.password !== signupDraft.confirmPassword) return showErr('Passwords do not match.');
 
+      if (isApkUnconfigured()) {
+        handleServerConnectionError(
+          { code: 'NO_SERVER_CONFIGURED', message: 'Connect to a VYRO server above first (tap Scan Wi-Fi or enter your server URL).' },
+          showErr,
+          root,
+          onSignedIn
+        );
+        return;
+      }
+
       try {
         const check = await api(`/api/auth/check-username?username=${encodeURIComponent(signupDraft.username)}`);
         if (!check.available) return showErr(check.reason);
-      } catch {}
+      } catch (err) {
+        if (err?.code === 'NO_SERVER_CONFIGURED' || err?.code === 'SERVER_UNREACHABLE' || err?.status === 404) {
+          handleServerConnectionError(err, showErr, root, onSignedIn);
+          return;
+        }
+      }
 
       if (!signupDraft.displayName) signupDraft.displayName = signupDraft.username;
       signupDraft.step = 2;
@@ -716,6 +975,15 @@ function renderSignupArea(area, root, onSignedIn) {
   };
 
   stepBody.querySelector('#su-finish').onclick = async () => {
+    if (isApkUnconfigured()) {
+      handleServerConnectionError(
+        { code: 'NO_SERVER_CONFIGURED', message: 'Connect to a VYRO server above first (tap Scan Wi-Fi or enter your server URL).' },
+        showErr,
+        root,
+        onSignedIn
+      );
+      return;
+    }
     const btn = stepBody.querySelector('#su-finish');
     btn.disabled = true;
     btn.textContent = 'Launching VYRO...';
@@ -743,7 +1011,7 @@ function renderSignupArea(area, root, onSignedIn) {
       signupDraft.step = 1;
       onSignedIn(res.user);
     } catch (err) {
-      showErr(err.message);
+      handleServerConnectionError(err, showErr, root, onSignedIn);
       btn.disabled = false;
       btn.textContent = 'Create VYRO Account ⚡';
     }
@@ -815,7 +1083,43 @@ async function renderDownloadView(container) {
   };
 
   try {
-    const [net, upd] = await Promise.all([api('/api/network-info'), api('/api/updates/check')]);
+    let net;
+    let upd;
+    if (isApkUnconfigured()) {
+      net = {
+        version: '1.0.6',
+        lanUrls: [],
+        githubOwner: 'moongames0101-cmyk',
+        githubRepo: 'vyro',
+        localExes: [],
+        localApks: []
+      };
+      try {
+        const ghRes = await fetch('https://api.github.com/repos/moongames0101-cmyk/vyro/releases/latest', {
+          headers: { Accept: 'application/vnd.github+json' }
+        });
+        const rel = ghRes.ok ? await ghRes.json() : null;
+        upd = {
+          releasesPage: rel?.html_url || 'https://github.com/moongames0101-cmyk/vyro/releases',
+          exeAssets: (rel?.assets || [])
+            .filter((a) => a.name.toLowerCase().endsWith('.exe'))
+            .map((a) => ({ name: a.name, downloadUrl: a.browser_download_url })),
+          apkAssets: (rel?.assets || [])
+            .filter((a) => a.name.toLowerCase().endsWith('.apk'))
+            .map((a) => ({ name: a.name, downloadUrl: a.browser_download_url })),
+          message: 'Connect to your PC VYRO server or download latest releases from GitHub.'
+        };
+      } catch {
+        upd = {
+          releasesPage: 'https://github.com/moongames0101-cmyk/vyro/releases',
+          exeAssets: [],
+          apkAssets: [],
+          message: 'Ready for GitHub Releases distribution.'
+        };
+      }
+    } else {
+      [net, upd] = await Promise.all([api('/api/network-info'), api('/api/updates/check')]);
+    }
     networkInfoCache = { net, upd };
     const cards = container.querySelector('#dl-cards-root');
     const mobileUrl = net.lanUrls?.[0]?.url || location.origin;
@@ -873,7 +1177,7 @@ async function renderDownloadView(container) {
           Direct download Android APK package. Install directly on any Android phone with native camera, microphone, snaps, and live server sync!
         </p>
         <div style="display:flex;flex-direction:column;gap:8px;">
-          ${localApkButtons || `<a class="btn btn-primary" href="/downloads/VYRO.apk" download>${ICONS.download} Download VYRO.apk</a>`}
+          ${localApkButtons || (!isApkMode() && !ghApkButtons ? `<a class="btn btn-primary" href="/downloads/VYRO.apk" download>${ICONS.download} Download VYRO.apk</a>` : '')}
           ${ghApkButtons}
           <a class="btn btn-secondary" href="https://github.com/${escapeHtml(net.githubOwner)}/${escapeHtml(net.githubRepo)}/releases" target="_blank" rel="noopener">
             🤖 View Android APK on GitHub Releases

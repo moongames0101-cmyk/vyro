@@ -1,4 +1,16 @@
-import { VyroWsClient, api, getToken, setToken } from './api.js';
+import {
+  VyroWsClient,
+  api,
+  discoverLanServers,
+  getServerUrl,
+  getToken,
+  initApkEnvironment,
+  isApkMode,
+  isPrivateOrLocalHost,
+  probeServerHealth,
+  saveServerUrl,
+  setToken
+} from './api.js';
 import { mountAuthPortal } from './components/AuthPortal.js';
 import { renderWorkspace } from './components/Workspace.js';
 import { playChime, setState, state, subscribe, toast } from './state.js';
@@ -193,14 +205,48 @@ if (window.vyroDesktop?.onUpdateStatus) {
 }
 
 (async function boot() {
+  const setBootMessage = (text) => {
+    const sub = document.querySelector('.boot-sub');
+    if (sub) sub.textContent = text;
+  };
+
+  await initApkEnvironment();
+
+  if (isApkMode()) {
+    let current = getServerUrl();
+    if (current) {
+      const check = await probeServerHealth(current, 1800);
+      if (!check.ok) {
+        let host = '';
+        try { host = new URL(current).hostname; } catch {}
+        if (isPrivateOrLocalHost(host)) {
+          setBootMessage('Searching Wi-Fi for your VYRO server...');
+          const scan = await discoverLanServers();
+          if (scan.found.length > 0) {
+            await saveServerUrl(scan.found[0].url);
+            current = scan.found[0].url;
+          }
+        }
+      }
+    } else {
+      setBootMessage('Searching Wi-Fi for your VYRO server...');
+      const scan = await discoverLanServers();
+      if (scan.found.length > 0) {
+        await saveServerUrl(scan.found[0].url);
+      }
+    }
+  }
+
   const token = getToken();
   if (token) {
     try {
       const me = await api('/api/auth/me');
       await enterApp(me.user);
       return;
-    } catch {
-      setToken('');
+    } catch (err) {
+      if (err?.status === 401) {
+        setToken('');
+      }
     }
   }
   syncRouteFromHash();

@@ -1,4 +1,4 @@
-import { api, getServerUrl, setServerUrl, setToken } from '../api.js';
+import { api, getServerUrl, isApkMode, saveServerUrl, setToken } from '../api.js';
 import { openAvatarCropperModal } from './AvatarCropper.js';
 import {
   AVATAR_GRADIENTS,
@@ -550,8 +550,8 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
       const renderUpdates = async () => {
         body.innerHTML = `<div class="field-hint">Checking for the latest VYRO release...</div>`;
         const upd = await api('/api/updates/check').catch(() => ({
-          currentVersion: '1.0.5',
-          latestVersion: '1.0.5',
+          currentVersion: '1.0.6',
+          latestVersion: '1.0.6',
           updateAvailable: false,
           githubOwner: 'moongames0101-cmyk',
           githubRepo: 'vyro',
@@ -631,7 +631,7 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
                 <div class="field">
                   <label>Custom Server URL (Optional)</label>
                   <div style="display:flex;gap:8px;">
-                    <input class="input-control" id="srv-url-input" value="${escapeHtml(getServerUrl())}" placeholder="${escapeHtml(location.origin)} (local)" />
+                    <input class="input-control" id="srv-url-input" value="${escapeHtml(getServerUrl())}" placeholder="${escapeHtml(isApkMode() ? '192.168.0.x:3847 or https://...' : `${location.origin} (local)`)}" />
                     <button type="button" class="btn btn-secondary btn-sm" id="srv-url-save">Apply</button>
                   </div>
                 </div>
@@ -678,10 +678,14 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
           renderUpdates();
         };
 
-        body.querySelector('#srv-url-save').onclick = () => {
-          setServerUrl(body.querySelector('#srv-url-input').value);
-          setToken('');
-          location.reload();
+        body.querySelector('#srv-url-save').onclick = async () => {
+          try {
+            await saveServerUrl(body.querySelector('#srv-url-input').value);
+            setToken('');
+            location.reload();
+          } catch (err) {
+            toast(err.message, 'error');
+          }
         };
       };
 

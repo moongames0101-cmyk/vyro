@@ -155,7 +155,7 @@ public class MainActivity extends Activity {
 
         // ── Start the local asset server and load the app ──
         try {
-            assetServer = new LocalAssetServer(getAssets());
+            assetServer = new LocalAssetServer(getAssets(), getApplicationContext());
             int port = assetServer.start();
             webView.loadUrl("http://127.0.0.1:" + port + "/index.html");
         } catch (IOException e) {

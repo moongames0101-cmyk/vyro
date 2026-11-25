@@ -78,12 +78,19 @@ function createVyroServer(options = {}) {
   cleanupInterval.unref();
 
   const server = http.createServer(async (req, res) => {
+    const methodOverride = req.headers['x-http-method-override'];
+    if (req.method === 'POST' && typeof methodOverride === 'string' && /^(PATCH|PUT|DELETE)$/i.test(methodOverride.trim())) {
+      req.method = methodOverride.trim().toUpperCase();
+    }
     const origin = req.headers.origin;
     if (origin) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Credentials', 'true');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-HTTP-Method-Override');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+    }
+    if (req.headers['access-control-request-private-network']) {
+      res.setHeader('Access-Control-Allow-Private-Network', 'true');
     }
     if (req.method === 'OPTIONS') {
       res.writeHead(204);

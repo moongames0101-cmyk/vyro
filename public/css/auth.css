@@ -645,6 +645,77 @@
   gap: 8px;
 }
 
+.apk-connect-panel {
+  margin-bottom: 16px;
+  padding: 13px 14px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.14), rgba(56, 189, 248, 0.08));
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.apk-connect-panel.connected {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.32);
+  padding: 10px 13px;
+}
+
+.apk-connect-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.apk-connect-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.apk-connect-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--vyro-gold);
+  box-shadow: 0 0 8px rgba(250, 204, 21, 0.6);
+  flex-shrink: 0;
+}
+
+.apk-connect-panel.connected .apk-connect-dot {
+  background: var(--status-online);
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.65);
+}
+
+.apk-discovered-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.apk-server-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(250, 204, 21, 0.14);
+  border: 1px solid rgba(250, 204, 21, 0.42);
+  color: #FEF08A;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.apk-server-chip:hover {
+  background: rgba(250, 204, 21, 0.24);
+}
+
 @media (max-width: 920px) {
   .auth-shell {
     grid-template-columns: 1fr;

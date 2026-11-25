@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const http = require('node:http');
 const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
@@ -242,4 +243,141 @@ test('RFC 6455 WebSocket handshake and real-time message delivery', async () => 
     });
     socket.on('error', reject);
   });
+});
+
+test('server PNA CORS preflight and X-HTTP-Method-Override PATCH support', async () => {
+  const preflight = await fetch(`${baseUrl}/api/auth/signup`, {
+    method: 'OPTIONS',
+    headers: {
+      Origin: 'http://127.0.0.1:17483',
+      'Access-Control-Request-Method': 'POST',
+      'Access-Control-Request-Private-Network': 'true'
+    }
+  });
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get('access-control-allow-origin'), 'http://127.0.0.1:17483');
+  assert.equal(preflight.headers.get('access-control-allow-private-network'), 'true');
+
+  const su = await reqJson('/api/auth/signup', {
+    method: 'POST',
+    body: { email: 'override@test.dev', username: 'override_user', password: 'password123', displayName: 'Override' }
+  });
+  assert.equal(su.status, 201);
+
+  const patchOverride = await fetch(`${baseUrl}/api/auth/me`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${su.data.token}`,
+      'X-HTTP-Method-Override': 'PATCH'
+    },
+    body: JSON.stringify({ statusText: 'Proxied PATCH OK' })
+  });
+  assert.equal(patchOverride.status, 200);
+  const patched = await patchOverride.json();
+  assert.equal(patched.user.statusText, 'Proxied PATCH OK');
+});
+
+test('client api.js normalizes server URLs and handles APK proxy signup without 404', async () => {
+  let savedNativeServer = '';
+  const mockProxyServer = http.createServer(async (req, res) => {
+    if (req.url === '/_apk/status' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ isApk: true, serverUrl: savedNativeServer, localIps: ['192.168.0.42'] }));
+      return;
+    }
+    if (req.url === '/_apk/server-url' && req.method === 'POST') {
+      const chunks = [];
+      for await (const c of req) chunks.push(c);
+      const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+      savedNativeServer = parsed.url || '';
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, serverUrl: savedNativeServer }));
+      return;
+    }
+    if (req.url.startsWith('/api/')) {
+      const target = req.headers['x-vyro-target'] || savedNativeServer;
+      if (!target) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'No VYRO server connected yet.', code: 'NO_SERVER_CONFIGURED' }));
+        return;
+      }
+      const chunks = [];
+      for await (const c of req) chunks.push(c);
+      const body = Buffer.concat(chunks);
+      const upstream = await fetch(`${target}${req.url}`, {
+        method: req.method,
+        headers: {
+          'Content-Type': req.headers['content-type'] || 'application/json',
+          ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {})
+        },
+        body: req.method === 'GET' || req.method === 'HEAD' ? undefined : body
+      });
+      const upBuf = Buffer.from(await upstream.arrayBuffer());
+      res.writeHead(upstream.status, { 'Content-Type': upstream.headers.get('content-type') || 'application/json' });
+      res.end(upBuf);
+      return;
+    }
+    res.writeHead(404);
+    res.end('Not Found');
+  });
+
+  await new Promise((resolve) => mockProxyServer.listen(0, '127.0.0.1', resolve));
+  const proxyAddr = mockProxyServer.address();
+  const proxyOrigin = `http://127.0.0.1:${proxyAddr.port}`;
+
+  const prevWindow = globalThis.window;
+  const prevLocation = globalThis.location;
+  const prevLocalStorage = globalThis.localStorage;
+  const prevFetch = globalThis.fetch;
+  const store = new Map();
+
+  try {
+    globalThis.window = {};
+    globalThis.location = { hostname: '127.0.0.1', origin: proxyOrigin, protocol: 'http:', host: `127.0.0.1:${proxyAddr.port}` };
+    globalThis.localStorage = {
+      getItem: (k) => (store.has(k) ? store.get(k) : null),
+      setItem: (k, v) => store.set(k, String(v)),
+      removeItem: (k) => store.delete(k)
+    };
+    globalThis.fetch = (input, init) => {
+      const urlStr = typeof input === 'string' && input.startsWith('/') ? `${proxyOrigin}${input}` : input;
+      return prevFetch(urlStr, init);
+    };
+
+    const clientApi = await import('../public/js/api.js');
+    assert.deepEqual(clientApi.normalizeServerUrl('192.168.0.119:3847'), { valid: true, url: 'http://192.168.0.119:3847' });
+    assert.deepEqual(clientApi.normalizeServerUrl('192.168.0.119'), { valid: true, url: 'http://192.168.0.119:3847' });
+    assert.deepEqual(clientApi.normalizeServerUrl('vyro-chat.onrender.com/#/login'), { valid: true, url: 'https://vyro-chat.onrender.com' });
+    assert.deepEqual(clientApi.normalizeServerUrl('invalid host'), { valid: false, url: '' });
+
+    const env = await clientApi.initApkEnvironment();
+    assert.equal(env.isApk, true);
+    assert.equal(clientApi.isApkUnconfigured(), true);
+
+    await assert.rejects(
+      () => clientApi.api('/api/auth/signup', { method: 'POST', body: {} }),
+      (err) => err.code === 'NO_SERVER_CONFIGURED' && err.status === 503
+    );
+
+    const probe = await clientApi.probeServerHealth(baseUrl, 2000);
+    assert.equal(probe.ok, true);
+
+    await clientApi.saveServerUrl(probe.url);
+    assert.equal(savedNativeServer, baseUrl);
+    assert.equal(clientApi.isApkUnconfigured(), false);
+
+    const su = await clientApi.api('/api/auth/signup', {
+      method: 'POST',
+      body: { email: 'apk_mobile@test.dev', username: 'apk_mobile', password: 'password123', displayName: 'APK User' }
+    });
+    assert.equal(su.user.username, 'apk_mobile');
+    assert.ok(su.token);
+  } finally {
+    globalThis.window = prevWindow;
+    globalThis.location = prevLocation;
+    globalThis.localStorage = prevLocalStorage;
+    globalThis.fetch = prevFetch;
+    await new Promise((resolve) => mockProxyServer.close(resolve));
+  }
 });
