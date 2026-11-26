@@ -7,3 +7,12 @@ data/
 .env
 .DS_Store
 Thumbs.db
+
+# Signing keys and secrets: never commit these
+*.keystore
+*.jks
+.vyro-secret
+secrets/
+
+# Backups made before updates
+_backup_before_*/

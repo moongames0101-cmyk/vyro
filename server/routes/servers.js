@@ -1,6 +1,8 @@
 const crypto = require('node:crypto');
-const { readJsonBody, sendJson, publicUser } = require('../auth');
+const { readJsonBody, sendJson, publicUser, rateLimit } = require('../auth');
 const { uid } = require('../db');
+
+const SAFE_CSS_COLOR = /^(#[0-9a-fA-F]{3,8}|linear-gradient\(\s*-?\d{1,3}deg\s*(,\s*#[0-9a-fA-F]{3,8}(\s+\d{1,3}%)?\s*){2,4}\))$/;
 
 function randomInviteCode() {
   return crypto.randomBytes(3).toString('hex').toUpperCase();
@@ -77,7 +79,8 @@ async function handleServerRoutes({ req, res, pathname, db, authUser, wsHub }) {
     if (name.length < 2) return sendJson(res, 400, { error: 'Server name must be at least 2 characters.' });
 
     const iconEmoji = String(body.iconEmoji || '🚀').slice(0, 8);
-    const iconColor = String(body.iconColor || 'linear-gradient(135deg,#8B5CF6,#FACC15)');
+    const requestedColor = String(body.iconColor || '').trim();
+    const iconColor = SAFE_CSS_COLOR.test(requestedColor) ? requestedColor : 'linear-gradient(135deg,#8B5CF6,#FACC15)';
     const description = String(body.description || `${name} community hub on VYRO.`).slice(0, 160);
     const srvId = uid('srv_');
     const inviteCode = randomInviteCode();
@@ -110,6 +113,9 @@ async function handleServerRoutes({ req, res, pathname, db, authUser, wsHub }) {
   }
 
   if (pathname === '/api/servers/join' && req.method === 'POST') {
+    if (!rateLimit(`join:${authUser.id}`, 20, 10 * 60 * 1000).allowed) {
+      return sendJson(res, 429, { error: 'Too many invite codes tried. Wait a few minutes and try again.' });
+    }
     const body = await readJsonBody(req);
     const code = String(body.inviteCode || '').trim().toUpperCase();
     if (!code) return sendJson(res, 400, { error: 'Enter an invite code (e.g. VYROHQ or GAME24).' });

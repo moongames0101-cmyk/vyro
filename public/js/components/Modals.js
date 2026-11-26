@@ -12,6 +12,9 @@ import {
 } from '../icons.js';
 import { escapeHtml, setState, state, toast } from '../state.js';
 import { renderQrSvg } from '../utils/qr.js';
+import { renderPlusPanel } from './PlusPanel.js';
+import { renderModPanel } from './ModPanel.js';
+import { profileThemeClass, renderNameHtml } from '../plus.js';
 
 export function closeModal() {
   const root = document.getElementById('modal-root');
@@ -352,10 +355,10 @@ export function openUserProfileModal(user, onOpenDm) {
       <h3>VYRO Profile</h3>
       <button class="btn-ghost btn-sm" id="m-close">✕</button>
     </div>
-    <div style="display:flex;align-items:center;gap:14px;">
+    <div class="${profileThemeClass(user)}" style="display:flex;align-items:center;gap:14px;border-radius:16px;${profileThemeClass(user) ? 'padding:14px;' : ''}">
       ${renderAvatarHtml(user, 68, true)}
       <div>
-        <div style="font-size:20px;font-weight:900;">${escapeHtml(user.displayName)}</div>
+        <div style="font-size:20px;font-weight:900;">${renderNameHtml(user, { labels: true, badgeSize: 18 })}</div>
         <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--text-muted);">@${escapeHtml(user.username)}#${escapeHtml(user.discriminator)}</div>
         <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;">
           <span class="badge-pill" style="background:rgba(250,204,21,0.16);color:var(--vyro-gold);">👻 Score ${user.snapScore || 0}</span>
@@ -399,12 +402,14 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
   openModal(
     `
     <div class="modal-head">
-      <h3>${initialTab === 'updates' ? 'VYRO Updates' : 'Settings &amp; Profile'}</h3>
+      <h3>${initialTab === 'updates' ? 'VYRO Updates' : initialTab === 'plus' ? 'VYRO+' : 'Settings &amp; Profile'}</h3>
       <button class="btn-ghost btn-sm" id="m-close">✕</button>
     </div>
-    <div class="auth-tabs" style="margin-bottom:4px;">
+    <div class="auth-tabs" style="margin-bottom:4px;grid-template-columns:repeat(${u.isAdmin ? 4 : 3},1fr);">
       <button class="auth-tab ${initialTab === 'profile' ? 'active' : ''}" data-stab="profile">Profile &amp; Avatar</button>
+      <button class="auth-tab ${initialTab === 'plus' ? 'active' : ''}" data-stab="plus">👑 VYRO+</button>
       <button class="auth-tab ${initialTab === 'updates' ? 'active' : ''}" data-stab="updates">Updates</button>
+      ${u.isAdmin ? `<button class="auth-tab" data-stab="mod">🛡️ Mod</button>` : ''}
     </div>
     <div id="settings-body"></div>
     `,
@@ -438,6 +443,14 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
               <label>Bio</label>
               <input class="input-control" id="st-bio" value="${escapeHtml(u.bio)}" maxlength="180" />
             </div>
+            ${
+              !u.hasBirthday || !u.hasRecoveryPhrase
+                ? `<div class="form-row-2">
+                    ${!u.hasBirthday ? `<div class="field"><label>Date of birth (needed for VYRO Live)</label><input class="input-control" type="date" id="st-bday" max="${new Date().toISOString().slice(0, 10)}" /><span class="field-hint">You can only set this once.</span></div>` : ''}
+                    ${!u.hasRecoveryPhrase ? `<div class="field"><label>Recovery phrase</label><input class="input-control" id="st-rec" minlength="4" placeholder="So you can reset your password" /><span class="field-hint">Write it down somewhere safe.</span></div>` : ''}
+                  </div>`
+                : ''
+            }
             <div class="avatar-builder-box">
               <div class="avatar-preview-stage">
                 <div id="st-av-preview" style="width:84px;height:84px;border-radius:50%;overflow:hidden;border:2px solid var(--vyro-gold);">
@@ -534,7 +547,9 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
                 bio: body.querySelector('#st-bio').value.trim(),
                 avatarType,
                 avatarUrl,
-                avatarConfig: draftCfg
+                avatarConfig: draftCfg,
+                ...(body.querySelector('#st-bday')?.value ? { birthday: body.querySelector('#st-bday').value } : {}),
+                ...(body.querySelector('#st-rec')?.value.trim() ? { recoveryHint: body.querySelector('#st-rec').value.trim() } : {})
               }
             });
             setState({ user: res.user });
@@ -550,8 +565,8 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
       const renderUpdates = async () => {
         body.innerHTML = `<div class="field-hint">Checking for the latest VYRO release...</div>`;
         const upd = await api('/api/updates/check').catch(() => ({
-          currentVersion: '1.0.6',
-          latestVersion: '1.0.6',
+          currentVersion: '1.1.0',
+          latestVersion: '1.1.0',
           updateAvailable: false,
           githubOwner: 'moongames0101-cmyk',
           githubRepo: 'vyro',
@@ -694,11 +709,14 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
           card.querySelectorAll('[data-stab]').forEach((x) => x.classList.remove('active'));
           t.classList.add('active');
           if (t.dataset.stab === 'updates') renderUpdates();
+          else if (t.dataset.stab === 'plus') renderPlusPanel(body);
+          else if (t.dataset.stab === 'mod') renderModPanel(body);
           else renderProfile();
         };
       });
 
       if (initialTab === 'updates') renderUpdates();
+      else if (initialTab === 'plus') renderPlusPanel(body);
       else renderProfile();
     },
     true

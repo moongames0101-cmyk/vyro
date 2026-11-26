@@ -10,6 +10,8 @@ import {
   openUserProfileModal
 } from './Modals.js';
 import { openSnapStudioModal } from './SnapStudio.js';
+import { openLiveHub } from './Live.js';
+import { PLUS_EFFECTS, PLUS_REACTIONS, STICKERS, burstConfetti, isPlus, renderNameHtml, stickerHtml } from '../plus.js';
 import { openSnapViewer, openStoryViewer } from './Viewers.js';
 
 let typingTimeout = null;
@@ -23,6 +25,8 @@ let voiceCamStream = null;
 let voiceCamBlur = false;
 let voiceJoinStartedAt = null;
 let voiceTimerHandle = null;
+let composerEffect = '';
+const burstSeen = new Set();
 
 const QUICK_EMOJIS = ['🔥', '⚡', '😂', '❤️', '🙌', '👀', '💀', '🎉', '✨', '🫡'];
 
@@ -254,6 +258,8 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
               <button class="rail-nav-btn ${navTab === 'communities' ? 'active' : ''}" data-rail-nav="communities">${ICONS.globe}<span>Communities</span></button>
               <button class="rail-nav-btn ${navTab === 'voice' ? 'active' : ''}" data-rail-nav="voice">${ICONS.voiceStage}<span>Voice Stage</span>${inThisVc.length > 0 || state.myVoiceChannelId ? `<span class="rail-nav-badge" style="background:var(--status-online);color:#041208;">LIVE</span>` : ''}</button>
               <button class="rail-nav-btn ${navTab === 'discover' ? 'active' : ''}" data-rail-nav="discover">${ICONS.compass}<span>Discover</span></button>
+              <button class="rail-nav-btn" id="rail-live-btn">${ICONS.video}<span>VYRO Live</span><span class="rail-nav-badge live-badge">18+</span></button>
+              <button class="rail-nav-btn rail-plus-btn" id="rail-plus-btn"><span class="rail-plus-crown">👑</span><span>VYRO+</span>${isPlus(user) ? '' : `<span class="rail-nav-badge plus-price-badge">£1.99</span>`}</button>
               <button class="rail-nav-btn ${navTab === 'friends' ? 'active' : ''}" data-rail-nav="friends">${ICONS.users}<span>Friends</span>${state.incomingRequests.length ? `<span class="rail-nav-badge">${state.incomingRequests.length}</span>` : ''}</button>
               <button class="rail-nav-btn" id="rail-updates-btn">${ICONS.refresh}<span>Updates</span>${state.updateInfo?.updateAvailable || state.desktopUpdateState?.stage === 'ready' ? `<span class="rail-nav-badge" style="background:var(--vyro-gold);color:#090910;">NEW</span>` : ''}</button>
               <button class="rail-nav-btn" id="rail-settings-btn">${ICONS.settings}<span>Settings</span></button>
@@ -274,7 +280,7 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
               <div style="display:flex;align-items:center;gap:9px;min-width:0;">
                 ${renderAvatarHtml(user, 34, true)}
                 <div style="min-width:0;">
-                  <div style="font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(user.displayName)}</div>
+                  <div style="font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${renderNameHtml(user, { badgeSize: 13 })}</div>
                   <div style="font-size:11px;color:var(--status-online);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(user.statusText || 'Online')}</div>
                 </div>
               </div>
@@ -362,7 +368,7 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
                       ${renderAvatarHtml(f.user, 32, true)}
                       <div class="dm-meta">
                         <div class="dm-name-line">
-                          <span class="dm-name">${escapeHtml(f.user.displayName)}</span>
+                          <span class="dm-name">${renderNameHtml(f.user, { badgeSize: 13 })}</span>
                           ${f.streakCount > 0 ? `<span class="streak-pill">${f.streakExpiring ? '⌛' : ''}🔥 ${f.streakCount}</span>` : ''}
                         </div>
                         <div class="dm-snap-status">
@@ -436,6 +442,7 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
         <button class="mobile-nav-btn ${state.mobileTab === 'chats' ? 'active' : ''}" data-mtab="chats"><span>💬</span><span>Chats</span></button>
         <button class="mobile-nav-btn ${state.mobileTab === 'servers' ? 'active' : ''}" data-mtab="servers"><span>🌐</span><span>Rooms</span></button>
         <button class="mobile-nav-btn" id="mobile-snap-fab"><div class="mobile-snap-fab">${ICONS.camera}</div></button>
+        <button class="mobile-nav-btn" id="mobile-live-btn"><span>🔴</span><span>Live</span></button>
         <button class="mobile-nav-btn ${state.mobileTab === 'stories' ? 'active' : ''}" data-mtab="stories"><span>✨</span><span>Stories</span></button>
         <button class="mobile-nav-btn" id="mobile-profile-btn"><span>👤</span><span>You</span></button>
       </nav>
@@ -666,7 +673,7 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
                       <div style="display:flex;align-items:center;gap:11px;">
                         ${renderAvatarHtml(f.user, 38, true)}
                         <div>
-                          <div style="font-weight:800;">${escapeHtml(f.user.displayName)} ${f.streakCount > 0 ? `<span class="streak-pill">🔥 ${f.streakCount}</span>` : ''}</div>
+                          <div style="font-weight:800;">${renderNameHtml(f.user, { labels: true })} ${f.streakCount > 0 ? `<span class="streak-pill">🔥 ${f.streakCount}</span>` : ''}</div>
                           <div class="field-hint">${escapeHtml(f.user.statusText || f.user.presence)}</div>
                         </div>
                       </div>
@@ -720,7 +727,7 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
         <button class="dock-icon-btn mobile-only-btn" id="mobile-back-list">←</button>
         ${headerAvatar}
         <div style="min-width:0;">
-          <div class="chat-header-title">${escapeHtml(headerTitle)}</div>
+          <div class="chat-header-title">${activeFriendEntry && currentScopeType !== 'channel' ? renderNameHtml(activeFriendEntry.user) : escapeHtml(headerTitle)}</div>
           <div class="chat-header-topic">${escapeHtml(headerSub)}</div>
         </div>
       </div>
@@ -740,7 +747,7 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
     <div class="messages-scroll" id="messages-feed">
       ${
         state.messages.length
-          ? state.messages.map((m) => renderMessageRowHtml(m, user.id)).join('')
+          ? state.messages.map((m) => renderMessageRowHtml(m, user.id, isPlus(user))).join('')
           : `<div class="empty-chat-bento">
               <div class="empty-chat-orb">⚡</div>
               <div style="font-size:16px;font-weight:900;">Start the Conversation</div>
@@ -761,6 +768,16 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
         emojiTrayOpen
           ? `<div class="emoji-quick-tray" id="emoji-quick-tray">
               ${QUICK_EMOJIS.map((em) => `<button type="button" class="emoji-quick-btn" data-insert-emoji="${em}">${em}</button>`).join('')}
+              <div class="plus-tray-row">
+                <span class="plus-tray-title">👑 VYRO+ stickers</span>
+                ${
+                  isPlus(user)
+                    ? Object.entries(STICKERS)
+                        .map(([id, st]) => `<button type="button" class="plus-sticker-btn" data-send-sticker="${id}" title="${escapeHtml(st.text)}">${st.emoji}<small>${escapeHtml(st.text)}</small></button>`)
+                        .join('')
+                    : `<button type="button" class="btn btn-secondary btn-sm" data-open-plus="1">Unlock stickers, effects &amp; reactions with VYRO+</button>`
+                }
+              </div>
             </div>`
           : ''
       }
@@ -782,6 +799,11 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
         </select>
         <input class="composer-input" id="msg-input" placeholder="Message ${escapeHtml(headerTitle)}..." autocomplete="off" />
         <button type="button" class="composer-icon-btn" id="composer-emoji-btn" title="Quick Emojis">${ICONS.smile}</button>
+        ${
+          isPlus(user)
+            ? `<button type="button" class="composer-icon-btn composer-fx-btn ${composerEffect ? 'on' : ''}" id="composer-fx-btn" title="VYRO+ message effect: ${composerEffect || 'off'}">✨${composerEffect ? `<small>${escapeHtml(composerEffect)}</small>` : ''}</button>`
+            : ''
+        }
         <button type="button" class="composer-icon-btn" id="voice-rec-btn" title="Record Voice Note">${ICONS.mic}</button>
         <button type="submit" class="composer-send-circle" title="Send">${ICONS.send}</button>
       </form>
@@ -789,7 +811,7 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
   `;
 }
 
-function renderMessageRowHtml(m, viewerId) {
+function renderMessageRowHtml(m, viewerId, viewerIsPlus = false) {
   if (m.kind === 'system') {
     return `<div class="msg-row system-row">${escapeHtml(m.content)} • ${formatTime(m.createdAt)}</div>`;
   }
@@ -815,8 +837,11 @@ function renderMessageRowHtml(m, viewerId) {
     `;
   } else if (m.kind === 'voice') {
     bodyHtml = `<div class="voice-note-card"><span>🎙️ Voice</span><audio controls src="${escapeHtml(m.mediaData)}"></audio></div>`;
+  } else if (m.kind === 'sticker') {
+    bodyHtml = stickerHtml(m.content) || `<div class="msg-bubble">${escapeHtml(m.content)}</div>`;
   } else {
-    bodyHtml = `<div class="msg-bubble ${isMine ? 'mine' : ''}">${formatInlineMarkdown(m.content)}</div>`;
+    const fx = PLUS_EFFECTS.includes(m.effect) ? ` fx-${m.effect}` : '';
+    bodyHtml = `<div class="msg-bubble ${isMine ? 'mine' : ''}${fx}"${m.effect === 'confetti' ? ` data-confetti="${escapeHtml(m.id)}" data-created="${Number(m.createdAt) || 0}"` : ''}>${formatInlineMarkdown(m.content)}</div>`;
   }
 
   const reactionEntries = Object.entries(m.reactions || {});
@@ -826,7 +851,7 @@ function renderMessageRowHtml(m, viewerId) {
           .map(
             ([emoji, uids]) => `
           <button type="button" class="reaction-chip ${uids.includes(viewerId) ? 'mine' : ''}" data-react-msg="${escapeHtml(m.id)}" data-emoji="${escapeHtml(emoji)}">
-            <span>${escapeHtml(emoji)}</span><span>${uids.length}</span>
+            <span class="${PLUS_REACTIONS.includes(emoji) ? 'plus-react-emoji' : ''}">${escapeHtml(emoji)}</span><span>${uids.length}</span>
           </button>
         `
           )
@@ -839,7 +864,11 @@ function renderMessageRowHtml(m, viewerId) {
       <div>${renderAvatarHtml(author, 36)}</div>
       <div style="min-width:0;">
         <div class="msg-header">
-          <span class="msg-author" style="color:${isMine ? '#D8B4FE' : '#fff'};">${escapeHtml(author.displayName)}</span>
+          ${
+            isPlus(author)
+              ? `<span class="msg-author">${renderNameHtml(author, { labels: true })}</span>`
+              : `<span class="msg-author" style="color:${isMine ? '#D8B4FE' : '#fff'};">${escapeHtml(author.displayName)}</span>`
+          }
           ${author.isBot ? `<span class="msg-bot-tag">BOT</span>` : ''}
           <span class="msg-time">${formatTime(m.createdAt)}</span>
           ${m.isSaved ? `<span class="msg-saved-pill">Saved</span>` : ''}
@@ -856,6 +885,7 @@ function renderMessageRowHtml(m, viewerId) {
       </div>
       <div class="msg-actions">
         ${['🔥', '😂', '❤️', '⚡'].map((em) => `<button type="button" class="msg-act-btn" data-react-msg="${escapeHtml(m.id)}" data-emoji="${em}">${em}</button>`).join('')}
+        ${viewerIsPlus ? PLUS_REACTIONS.map((em) => `<button type="button" class="msg-act-btn plus-react" data-react-msg="${escapeHtml(m.id)}" data-emoji="${em}" title="VYRO+ reaction">${em}</button>`).join('') : ''}
         <button type="button" class="msg-act-btn" data-reply-msg="${escapeHtml(m.id)}" title="Reply">${ICONS.reply}</button>
         <button type="button" class="msg-act-btn" data-save-msg="${escapeHtml(m.id)}" title="Save in Chat">${ICONS.bookmark}</button>
         ${isMine ? `<button type="button" class="msg-act-btn" data-del-msg="${escapeHtml(m.id)}" title="Delete">${ICONS.trash}</button>` : ''}
@@ -884,7 +914,7 @@ function renderRightWidgetsHtml(activeServer, track, pool, voiceChannel) {
           <button class="member-item" data-inspect-user="${escapeHtml(u.id)}">
             ${renderAvatarHtml(u, 32, true)}
             <div style="flex:1;min-width:0;">
-              <div class="member-name" style="color:${u.role === 'owner' ? '#D8B4FE' : 'var(--text-primary)'};">${escapeHtml(u.displayName)}</div>
+              <div class="member-name" style="color:${u.role === 'owner' ? '#D8B4FE' : 'var(--text-primary)'};">${renderNameHtml(u, { badgeSize: 13 })}</div>
               <div class="member-sub">${escapeHtml(u.statusText || u.presence)}</div>
             </div>
             ${u.role === 'owner' ? '<span title="Owner">👑</span>' : ''}
@@ -992,7 +1022,13 @@ function wireWorkspaceEvents(
   }
 
   const openDmWithUser = async (userId, autoMessage = null) => {
-    const res = await api('/api/dms/open', { method: 'POST', body: { userId } });
+    let res;
+    try {
+      res = await api('/api/dms/open', { method: 'POST', body: { userId } });
+    } catch (err) {
+      toast(err.message || 'Could not open that chat.', 'error');
+      return;
+    }
     if (autoMessage) {
       await api('/api/messages', {
         method: 'POST',
@@ -1065,6 +1101,9 @@ function wireWorkspaceEvents(
   container.querySelector('#tb-upd-btn')?.addEventListener('click', () => openSettings('updates'));
   container.querySelector('#rail-updates-btn')?.addEventListener('click', () => openSettings('updates'));
   container.querySelector('#rail-settings-btn')?.addEventListener('click', () => openSettings('profile'));
+  container.querySelector('#rail-plus-btn')?.addEventListener('click', () => openSettings('plus'));
+  container.querySelector('#rail-live-btn')?.addEventListener('click', () => openLiveHub({ wsClient, openSettings }));
+  container.querySelector('#mobile-live-btn')?.addEventListener('click', () => openLiveHub({ wsClient, openSettings }));
   container.querySelector('#open-my-settings')?.addEventListener('click', () => openSettings('profile'));
   container.querySelector('#mobile-profile-btn')?.addEventListener('click', () => openSettings('profile'));
 
@@ -1284,6 +1323,44 @@ function wireWorkspaceEvents(
     setState({ emojiTick: Date.now() });
   });
 
+  container.querySelector('#composer-fx-btn')?.addEventListener('click', () => {
+    const order = ['', ...PLUS_EFFECTS];
+    composerEffect = order[(order.indexOf(composerEffect) + 1) % order.length];
+    toast(composerEffect ? `Next message: ${composerEffect} effect ✨` : 'Message effect off', 'info', 1600);
+    setState({ emojiTick: Date.now() });
+  });
+
+  container.querySelectorAll('[data-send-sticker]').forEach((btn) => {
+    btn.onclick = async () => {
+      if (!currentScopeType || !currentScopeId) return;
+      emojiTrayOpen = false;
+      try {
+        await api('/api/messages', {
+          method: 'POST',
+          body: { scopeType: currentScopeType, scopeId: currentScopeId, kind: 'sticker', content: btn.dataset.sendSticker, ttlSec: 0 }
+        });
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+      setState({ emojiTick: Date.now() });
+    };
+  });
+
+  container.querySelectorAll('[data-open-plus]').forEach((btn) => {
+    btn.onclick = () => {
+      emojiTrayOpen = false;
+      openSettings('plus');
+    };
+  });
+
+  // Confetti plays once, only for messages that just arrived.
+  container.querySelectorAll('[data-confetti]').forEach((el) => {
+    const id = el.dataset.confetti;
+    if (burstSeen.has(id)) return;
+    burstSeen.add(id);
+    if (Date.now() - Number(el.dataset.created || 0) < 15000) setTimeout(() => burstConfetti(el), 60);
+  });
+
   container.querySelectorAll('[data-insert-emoji]').forEach((btn) => {
     btn.onclick = () => {
       const em = btn.dataset.insertEmoji;
@@ -1320,8 +1397,9 @@ function wireWorkspaceEvents(
     try {
       await api('/api/messages', {
         method: 'POST',
-        body: { scopeType: currentScopeType, scopeId: currentScopeId, kind: 'text', content, ttlSec, replyToId: state.replyTo?.id || '' }
+        body: { scopeType: currentScopeType, scopeId: currentScopeId, kind: 'text', content, ttlSec, replyToId: state.replyTo?.id || '', effect: composerEffect || undefined }
       });
+      composerEffect = '';
       setState({ replyTo: null });
     } catch (err) {
       toast(err.message, 'error');

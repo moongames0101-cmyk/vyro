@@ -1,9 +1,18 @@
-const { readJsonBody, sendJson, publicUser } = require('../auth');
+const { readJsonBody, sendJson, publicUser, safeDataUrl, safeCssBackground } = require('../auth');
 const { uid } = require('../db');
+
+function friendIdsOf(db, userId) {
+  return db
+    .prepare("SELECT user_a, user_b FROM friendships WHERE status = 'accepted' AND (user_a = ? OR user_b = ?)")
+    .all(userId, userId)
+    .map((f) => (f.user_a === userId ? f.user_b : f.user_a));
+}
 
 async function handleStoryRoutes({ req, res, pathname, db, authUser, wsHub }) {
   if (!pathname.startsWith('/api/stories')) return false;
   if (!authUser) return sendJson(res, 401, { error: 'Authentication required.' });
+  // Stories are only shown to you and your accepted friends.
+  const allowedAuthors = new Set([authUser.id, ...friendIdsOf(db, authUser.id)]);
 
   if (pathname === '/api/stories' && req.method === 'GET') {
     const now = Date.now();
@@ -12,6 +21,7 @@ async function handleStoryRoutes({ req, res, pathname, db, authUser, wsHub }) {
     const byAuthor = new Map();
 
     for (const s of rows) {
+      if (!allowedAuthors.has(s.author_id)) continue;
       let viewedBy = [];
       try { viewedBy = JSON.parse(s.viewed_by || '[]'); } catch {}
       const item = {
@@ -49,12 +59,12 @@ async function handleStoryRoutes({ req, res, pathname, db, authUser, wsHub }) {
 
   if (pathname === '/api/stories' && req.method === 'POST') {
     const body = await readJsonBody(req);
-    const mediaData = String(body.mediaData || '').slice(0, 8_000_000);
+    const mediaData = safeDataUrl(String(body.mediaData || '').slice(0, 8_000_000), ['image', 'video']);
     if (!mediaData) return sendJson(res, 400, { error: 'Story image or canvas required.' });
 
     const caption = String(body.caption || '').trim().slice(0, 140);
     const captionY = Number(body.captionY ?? 0.6);
-    const bgGradient = String(body.bgGradient || 'linear-gradient(135deg,#8B5CF6,#FACC15)');
+    const bgGradient = safeCssBackground(body.bgGradient);
     const durationSec = Math.max(3, Math.min(15, Number(body.durationSec || 6)));
     const now = Date.now();
     const expiresAt = now + 24 * 3600 * 1000;
@@ -66,7 +76,7 @@ async function handleStoryRoutes({ req, res, pathname, db, authUser, wsHub }) {
     `).run(id, authUser.id, mediaData, caption, captionY, bgGradient, durationSec, now, expiresAt);
 
     db.prepare('UPDATE users SET snap_score = snap_score + 3 WHERE id = ?').run(authUser.id);
-    wsHub.broadcastAll('story:new', { storyId: id, authorId: authUser.id });
+    wsHub.broadcastToUsers([...allowedAuthors], 'story:new', { storyId: id, authorId: authUser.id });
     return sendJson(res, 201, { id, expiresAt });
   }
 
@@ -74,7 +84,7 @@ async function handleStoryRoutes({ req, res, pathname, db, authUser, wsHub }) {
   if (viewMatch && req.method === 'POST') {
     const storyId = viewMatch[1];
     const row = db.prepare('SELECT * FROM stories WHERE id = ?').get(storyId);
-    if (!row) return sendJson(res, 404, { error: 'Story expired or not found.' });
+    if (!row || !allowedAuthors.has(row.author_id)) return sendJson(res, 404, { error: 'Story expired or not found.' });
 
     let viewedBy = [];
     try { viewedBy = JSON.parse(row.viewed_by || '[]'); } catch {}
@@ -92,7 +102,7 @@ async function handleStoryRoutes({ req, res, pathname, db, authUser, wsHub }) {
     if (!row) return sendJson(res, 404, { error: 'Story not found.' });
     if (row.author_id !== authUser.id) return sendJson(res, 403, { error: 'Forbidden.' });
     db.prepare('DELETE FROM stories WHERE id = ?').run(storyId);
-    wsHub.broadcastAll('story:new', { deletedId: storyId });
+    wsHub.broadcastToUsers([...allowedAuthors], 'story:new', { deletedId: storyId });
     return sendJson(res, 200, { ok: true });
   }
 

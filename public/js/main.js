@@ -13,7 +13,7 @@ import {
 } from './api.js';
 import { mountAuthPortal } from './components/AuthPortal.js';
 import { renderWorkspace } from './components/Workspace.js';
-import { playChime, setState, state, subscribe, toast } from './state.js';
+import { emitWsEvent, playChime, setState, state, subscribe, toast } from './state.js';
 
 const rootEl = document.getElementById('root');
 
@@ -80,6 +80,23 @@ function setupWs() {
   if (wsClient) wsClient.disconnect();
   wsClient = new VyroWsClient(
     (event, data) => {
+      emitWsEvent(event, data);
+
+      if (event === 'plus:update') {
+        if (data.user) setState({ user: data.user });
+        return;
+      }
+
+      if (event === 'live:banned') {
+        if (state.user) setState({ user: { ...state.user, liveBanned: true } });
+        toast('Your account has been permanently banned from going live.', 'error', 6000);
+        return;
+      }
+
+      if (event === 'presence:update' && data.user && state.user && data.userId === state.user.id) {
+        setState({ user: { ...state.user, ...data.user } });
+      }
+
       if (event === 'hello') {
         setState({ voiceState: data.voiceState || {} });
         return;
@@ -160,8 +177,14 @@ function setupWs() {
 }
 
 async function enterApp(user) {
+  const returnedFromCheckout = /plus=success/.test(location.hash);
   setState({ user, route: 'app' });
   if (location.hash !== '#/app') location.hash = '#/app';
+  if (returnedFromCheckout) {
+    toast('Payment received. Welcome to VYRO+ 👑', 'success', 5000);
+    // The payment provider tells the server a moment later, so check again shortly.
+    setTimeout(() => api('/api/auth/me').then((me) => setState({ user: me.user })).catch(() => {}), 4000);
+  }
   setupWs();
   await loadAllData();
   api('/api/updates/check').then((upd) => setState({ updateInfo: upd })).catch(() => {});

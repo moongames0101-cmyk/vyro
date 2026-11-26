@@ -46,7 +46,7 @@ const signupDraft = {
   confirmPassword: '',
   displayName: '',
   discriminator: String(Math.floor(1000 + Math.random() * 9000)),
-  birthday: '2003-04-15',
+  birthday: '',
   bio: '',
   statusText: 'Vibing on VYRO ⚡',
   recoveryHint: '',
@@ -256,19 +256,19 @@ export async function mountAuthPortal(container, onSignedIn) {
 
       <main class="auth-shell">
         <section class="auth-showcase">
-          <div class="auth-eyebrow">⚡ Obsidian Prism UI • Discord Servers × Snapchat Streaks</div>
+          <div class="auth-eyebrow">🚫 No ads, ever • Free to use • VYRO+ just £1.99/month</div>
           <h1 class="auth-headline">
             Your Squads, <span class="grad">Snaps &amp; Spatial Voice</span> in One Place.
           </h1>
           <p class="auth-lead">
-            Launch real communities with persistent channels and Spatial Voice Stages, drop timed Flash Snaps with canvas art, grow daily 🔥 streaks, and post 24h Stories across Windows &amp; Android — with zero bots.
+            Launch real communities with persistent channels and Spatial Voice Stages, drop timed Flash Snaps with canvas art, grow daily 🔥 streaks, and post 24h Stories across Windows &amp; Android. No ads. No selling your data.
           </p>
 
           <div class="showcase-preview">
             <div class="preview-stories-row">
               <div class="preview-story-pill">
-                <div class="preview-story-ring">⚡</div>
-                <span>24h Stories • Live</span>
+                <div class="preview-story-ring">🔴</div>
+                <span>VYRO Live (18+)</span>
               </div>
               <div class="preview-story-pill">
                 <div class="preview-story-ring">📸</div>
@@ -292,6 +292,14 @@ export async function mountAuthPortal(container, onSignedIn) {
                 <h4>📸 Timed Snaps &amp; Stories</h4>
                 <p>Draw or shoot live camera Snaps, set 3s–10s timers, Replay once, or Save in Chat.</p>
               </div>
+              <div class="preview-mini-card plus-mini">
+                <h4>👑 VYRO+ • £1.99/month</h4>
+                <p>Crown badge, name effects, premium themes, borders, stickers and reactions. Cancel any time.</p>
+              </div>
+              <div class="preview-mini-card">
+                <h4>🛡️ Safer by design</h4>
+                <p>Only friends can message you. Going live is 18+ only, and under-18s found live are banned from it for good.</p>
+              </div>
             </div>
           </div>
 
@@ -299,7 +307,7 @@ export async function mountAuthPortal(container, onSignedIn) {
             <span class="platform-chip">🪟 Windows .exe App</span>
             <span class="platform-chip">🤖 Universal Android .apk (5.0–16+)</span>
             <span class="platform-chip">📱 Mobile PWA &amp; QR Sync</span>
-            <span class="platform-chip">🛡️ Zero Bots • Real Accounts Only</span>
+            <span class="platform-chip">🚫 No Ads, Ever</span>
           </div>
         </section>
 
@@ -612,8 +620,8 @@ function renderResetArea(area, root, onSignedIn) {
         <input class="input-control" id="reset-id" required placeholder="yourname or you@example.com" />
       </div>
       <div class="field">
-        <label>Recovery Phrase (set at sign up, blank if none)</label>
-        <input class="input-control" id="reset-hint" placeholder="Optional recovery phrase" />
+        <label>Recovery Phrase (the one you set at sign up)</label>
+        <input class="input-control" id="reset-hint" required placeholder="Your recovery phrase" />
       </div>
       <div class="field">
         <label>New Password</label>
@@ -843,12 +851,14 @@ function renderSignupArea(area, root, onSignedIn) {
         </div>
         <div class="form-row-2">
           <div class="field">
-            <label>Birthday (13+)</label>
-            <input class="input-control" id="su-bday" type="date" value="${escapeHtml(signupDraft.birthday)}" />
+            <label>Date of Birth (13+)</label>
+            <input class="input-control" id="su-bday" type="date" required max="${new Date().toISOString().slice(0, 10)}" value="${escapeHtml(signupDraft.birthday)}" />
+            <span class="field-hint">Keeps VYRO safe. VYRO Live is 18+ only.</span>
           </div>
           <div class="field">
-            <label>Recovery Phrase (Optional)</label>
-            <input class="input-control" id="su-rec" value="${escapeHtml(signupDraft.recoveryHint)}" placeholder="Secret word for reset" />
+            <label>Recovery Phrase</label>
+            <input class="input-control" id="su-rec" required minlength="4" value="${escapeHtml(signupDraft.recoveryHint)}" placeholder="Secret phrase to reset your password" />
+            <span class="field-hint">Write it down. You need it if you forget your password.</span>
           </div>
         </div>
         <div class="field">
@@ -885,11 +895,19 @@ function renderSignupArea(area, root, onSignedIn) {
       signupDraft.statusText = stepBody.querySelector('#su-status').value.trim();
       signupDraft.bio = stepBody.querySelector('#su-bio').value.trim();
 
-      if (signupDraft.birthday) {
-        const ageMs = Date.now() - new Date(signupDraft.birthday).getTime();
-        if (ageMs < 13 * 365.25 * 24 * 3600 * 1000) {
-          return showErr('You must be at least 13 years old to sign up.');
-        }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(signupDraft.birthday)) {
+        return showErr('Enter your date of birth.');
+      }
+      {
+        const [by, bm, bd] = signupDraft.birthday.split('-').map(Number);
+        const now = new Date();
+        let age = now.getFullYear() - by;
+        if (now.getMonth() + 1 < bm || (now.getMonth() + 1 === bm && now.getDate() < bd)) age -= 1;
+        if (age < 13) return showErr('You must be at least 13 years old to sign up.');
+        if (age > 120) return showErr('Please enter your real date of birth.');
+      }
+      if (signupDraft.recoveryHint.length < 4) {
+        return showErr('Choose a recovery phrase of at least 4 characters.');
       }
       signupDraft.step = 3;
       renderSignupArea(area, root, onSignedIn);
@@ -1142,7 +1160,7 @@ async function renderDownloadView(container) {
     let upd;
     if (isApkUnconfigured()) {
       net = {
-        version: '1.0.6',
+        version: '1.1.0',
         lanUrls: [],
         githubOwner: 'moongames0101-cmyk',
         githubRepo: 'vyro',

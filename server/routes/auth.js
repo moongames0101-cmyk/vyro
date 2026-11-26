@@ -4,8 +4,18 @@ const {
   signToken,
   readJsonBody,
   sendJson,
-  publicUser
+  publicUser,
+  selfUser,
+  hashRecoveryPhrase,
+  verifyRecoveryPhrase,
+  rateLimit,
+  clientIp,
+  ageFromBirthday,
+  sanitizeAvatarConfig,
+  safeDataUrl
 } = require('../auth');
+
+const MIN_AGE = 13;
 const { uid, onboardNewUser } = require('../db');
 
 function randomDiscriminator(db, usernameLower) {
@@ -33,21 +43,16 @@ async function handleAuthRoutes({ req, res, pathname, urlObj, db, dataDir, authU
     return sendJson(res, 200, { available: !taken, reason: taken ? 'That username is already claimed.' : 'Username available!' });
   }
 
-  if (pathname === '/api/auth/demo-users' && req.method === 'GET') {
-    const rows = db
-      .prepare("SELECT * FROM users WHERE is_bot = 0 AND email LIKE '%@vyro.app' ORDER BY created_at ASC LIMIT 4")
-      .all();
-    return sendJson(res, 200, { users: rows.map(publicUser) });
-  }
-
-  if (pathname === '/api/auth/nearby-accounts' && req.method === 'GET') {
-    const rows = db
-      .prepare("SELECT * FROM users WHERE is_bot = 0 ORDER BY created_at DESC LIMIT 20")
-      .all();
-    return sendJson(res, 200, { users: rows.map(publicUser) });
+  // These used to list accounts to anyone who asked. Kept so older apps don't error, but they return nothing now.
+  if ((pathname === '/api/auth/demo-users' || pathname === '/api/auth/nearby-accounts') && req.method === 'GET') {
+    return sendJson(res, 200, { users: [] });
   }
 
   if (pathname === '/api/auth/signup' && req.method === 'POST') {
+    const limit = rateLimit(`signup:${clientIp(req)}`, 10, 60 * 60 * 1000);
+    if (!limit.allowed) {
+      return sendJson(res, 429, { error: `Too many sign-ups from this network. Try again in ${Math.ceil(limit.retryAfterSec / 60)} minutes.` });
+    }
     const body = await readJsonBody(req);
     const email = String(body.email || '').trim().toLowerCase();
     const username = String(body.username || '').trim();
@@ -67,12 +72,15 @@ async function handleAuthRoutes({ req, res, pathname, urlObj, db, dataDir, authU
     if (password.length < 6) {
       return sendJson(res, 400, { error: 'Password must be at least 6 characters.' });
     }
-    if (birthday) {
-      const birthDate = new Date(birthday);
-      const ageMs = Date.now() - birthDate.getTime();
-      if (!Number.isNaN(ageMs) && ageMs < 13 * 365.25 * 24 * 3600 * 1000) {
-        return sendJson(res, 400, { error: 'You must be at least 13 years old to join VYRO.' });
-      }
+    const age = ageFromBirthday(birthday);
+    if (age === null || age > 120) {
+      return sendJson(res, 400, { error: 'Please enter your real date of birth.' });
+    }
+    if (age < MIN_AGE) {
+      return sendJson(res, 400, { error: `You must be at least ${MIN_AGE} years old to join VYRO.` });
+    }
+    if (recoveryHint.length < 4) {
+      return sendJson(res, 400, { error: 'Choose a recovery phrase of at least 4 characters. You need it to reset your password.' });
     }
 
     if (db.prepare('SELECT id FROM users WHERE email = ?').get(email)) {
@@ -86,7 +94,7 @@ async function handleAuthRoutes({ req, res, pathname, urlObj, db, dataDir, authU
     if (disc.length !== 4) disc = randomDiscriminator(db, username.toLowerCase());
 
     const avatarType = body.avatarType === 'image' && body.avatarUrl ? 'image' : 'svg';
-    const avatarUrl = avatarType === 'image' ? String(body.avatarUrl).slice(0, 2_000_000) : '';
+    const avatarUrl = avatarType === 'image' ? safeDataUrl(String(body.avatarUrl).slice(0, 2_000_000)) : '';
     const defaultAvatar = {
       bg: 'linear-gradient(135deg,#8B5CF6,#FACC15)',
       skin: '#F5C9A6',
@@ -96,7 +104,7 @@ async function handleAuthRoutes({ req, res, pathname, urlObj, db, dataDir, authU
       accent: '#FACC15',
       badge: '⚡'
     };
-    const avatarConfig = JSON.stringify(body.avatarConfig || defaultAvatar);
+    const avatarConfig = JSON.stringify(sanitizeAvatarConfig(body.avatarConfig || defaultAvatar));
 
     const id = uid('usr_');
     const now = Date.now();
@@ -111,16 +119,15 @@ async function handleAuthRoutes({ req, res, pathname, urlObj, db, dataDir, authU
     `).run(
       id, email, username, username.toLowerCase(), disc, displayName || username,
       passHash, birthday, bio, statusText,
-      avatarType, avatarConfig, avatarUrl, recoveryHint, now
+      avatarType, avatarConfig, avatarUrl, hashRecoveryPhrase(recoveryHint), now
     );
 
     onboardNewUser(db, id);
     try { db.exec('PRAGMA wal_checkpoint(TRUNCATE);'); } catch {}
 
     const row = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
-    const user = publicUser(row);
+    const user = selfUser(row);
     const token = signToken({ userId: user.id }, dataDir);
-    wsHub.broadcastAll('server:update', { serverId: 'srv_vyro_hq' });
 
     return sendJson(res, 201, { token, user }, { 'Set-Cookie': cookieHeader(token) });
   }
@@ -133,6 +140,13 @@ async function handleAuthRoutes({ req, res, pathname, urlObj, db, dataDir, authU
 
     if (!identifier || !password) {
       return sendJson(res, 400, { error: 'Enter your username or email and password.' });
+    }
+
+    const ipLimit = rateLimit(`login-ip:${clientIp(req)}`, 30, 15 * 60 * 1000);
+    const idLimit = rateLimit(`login-id:${identifier.toLowerCase()}`, 10, 15 * 60 * 1000);
+    if (!ipLimit.allowed || !idLimit.allowed) {
+      const wait = Math.ceil(Math.max(ipLimit.retryAfterSec, idLimit.retryAfterSec) / 60);
+      return sendJson(res, 429, { error: `Too many login attempts. Try again in ${wait} minutes.` });
     }
 
     let row = null;
@@ -154,7 +168,7 @@ async function handleAuthRoutes({ req, res, pathname, urlObj, db, dataDir, authU
     db.prepare("UPDATE users SET presence = 'online' WHERE id = ?").run(row.id);
     row.presence = 'online';
 
-    const user = publicUser(row);
+    const user = selfUser(row);
     const ttl = remember ? 30 * 24 * 3600 * 1000 : 24 * 3600 * 1000;
     const token = signToken({ userId: user.id }, dataDir, ttl);
     wsHub.broadcastAll('presence:update', { userId: user.id, presence: 'online' });
@@ -168,27 +182,34 @@ async function handleAuthRoutes({ req, res, pathname, urlObj, db, dataDir, authU
     const recoveryHint = String(body.recoveryHint || '').trim();
     const newPassword = String(body.newPassword || '');
 
-    if (!identifier || newPassword.length < 6) {
-      return sendJson(res, 400, { error: 'Provide account identifier and a new password (6+ chars).' });
+    if (!identifier || !recoveryHint || newPassword.length < 6) {
+      return sendJson(res, 400, { error: 'Enter your username or email, your recovery phrase, and a new password (6+ characters).' });
+    }
+
+    const ipLimit = rateLimit(`reset-ip:${clientIp(req)}`, 10, 60 * 60 * 1000);
+    const idLimit = rateLimit(`reset-id:${identifier}`, 5, 60 * 60 * 1000);
+    if (!ipLimit.allowed || !idLimit.allowed) {
+      return sendJson(res, 429, { error: 'Too many reset attempts. Try again in an hour.' });
     }
 
     const row = identifier.includes('@')
       ? db.prepare('SELECT * FROM users WHERE email = ?').get(identifier)
-      : db.prepare('SELECT * FROM users WHERE username_lower = ?').get(identifier);
+      : db.prepare('SELECT * FROM users WHERE username_lower = ?').get(identifier.split('#')[0]);
 
-    if (!row) return sendJson(res, 404, { error: 'No matching account found.' });
-    if (row.recovery_hint && row.recovery_hint.toLowerCase() !== recoveryHint.toLowerCase()) {
-      return sendJson(res, 403, { error: 'Recovery phrase does not match the one set at signup.' });
+    // Same answer whether the account exists or not, so this can't be used to find accounts.
+    if (!row || !row.recovery_hint || !verifyRecoveryPhrase(recoveryHint, row.recovery_hint)) {
+      return sendJson(res, 403, { error: "Those details don't match. If you never set a recovery phrase, contact VYRO support." });
     }
 
-    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(newPassword), row.id);
+    const upgradedHint = row.recovery_hint.startsWith('rh1:') ? row.recovery_hint : hashRecoveryPhrase(recoveryHint);
+    db.prepare('UPDATE users SET password_hash = ?, recovery_hint = ? WHERE id = ?').run(hashPassword(newPassword), upgradedHint, row.id);
     try { db.exec('PRAGMA wal_checkpoint(TRUNCATE);'); } catch {}
     return sendJson(res, 200, { ok: true, message: 'Password updated! You can now log in.' });
   }
 
   if (pathname === '/api/auth/me' && req.method === 'GET') {
     if (!authUser) return sendJson(res, 401, { error: 'Not signed in.' });
-    return sendJson(res, 200, { user: publicUser(authUser) });
+    return sendJson(res, 200, { user: selfUser(authUser) });
   }
 
   if (pathname === '/api/auth/me' && req.method === 'PATCH') {
@@ -199,18 +220,35 @@ async function handleAuthRoutes({ req, res, pathname, urlObj, db, dataDir, authU
     const statusText = body.statusText !== undefined ? String(body.statusText).trim().slice(0, 80) : authUser.status_text;
     const presence = ['online', 'idle', 'dnd', 'offline'].includes(body.presence) ? body.presence : authUser.presence;
     const avatarType = body.avatarType === 'image' || body.avatarType === 'svg' ? body.avatarType : authUser.avatar_type;
-    const avatarUrl = body.avatarUrl !== undefined ? String(body.avatarUrl).slice(0, 2_000_000) : authUser.avatar_url;
-    const avatarConfig = body.avatarConfig !== undefined ? JSON.stringify(body.avatarConfig) : authUser.avatar_config;
+    const avatarUrl = body.avatarUrl !== undefined ? safeDataUrl(String(body.avatarUrl).slice(0, 2_000_000)) : authUser.avatar_url;
+    const avatarConfig = body.avatarConfig !== undefined ? JSON.stringify(sanitizeAvatarConfig(body.avatarConfig)) : authUser.avatar_config;
+
+    // Accounts made before birthdays/recovery phrases were required can add them once.
+    let birthday = authUser.birthday || '';
+    if (body.birthday !== undefined && ageFromBirthday(authUser.birthday) === null) {
+      const age = ageFromBirthday(String(body.birthday));
+      if (age === null || age > 120) return sendJson(res, 400, { error: 'Please enter your real date of birth.' });
+      if (age < 13) return sendJson(res, 400, { error: 'You must be 13 or older to use VYRO.' });
+      birthday = String(body.birthday);
+    }
+    let recoveryHint = authUser.recovery_hint || '';
+    if (body.recoveryHint !== undefined && !recoveryHint) {
+      const phrase = String(body.recoveryHint).trim();
+      if (phrase.length < 4) return sendJson(res, 400, { error: 'Recovery phrase must be at least 4 characters.' });
+      recoveryHint = hashRecoveryPhrase(phrase);
+    }
 
     db.prepare(`
       UPDATE users
-      SET display_name = ?, bio = ?, status_text = ?, presence = ?, avatar_type = ?, avatar_config = ?, avatar_url = ?
+      SET display_name = ?, bio = ?, status_text = ?, presence = ?, avatar_type = ?, avatar_config = ?, avatar_url = ?,
+          birthday = ?, recovery_hint = ?
       WHERE id = ?
-    `).run(displayName || authUser.username, bio, statusText, presence, avatarType, avatarConfig, avatarUrl, authUser.id);
+    `).run(displayName || authUser.username, bio, statusText, presence, avatarType, avatarConfig, avatarUrl, birthday, recoveryHint, authUser.id);
 
-    const updated = publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(authUser.id));
-    wsHub.broadcastAll('presence:update', { userId: updated.id, presence: updated.presence, user: updated });
-    return sendJson(res, 200, { user: updated });
+    const updatedRow = db.prepare('SELECT * FROM users WHERE id = ?').get(authUser.id);
+    const pub = publicUser(updatedRow);
+    wsHub.broadcastAll('presence:update', { userId: pub.id, presence: pub.presence, user: pub });
+    return sendJson(res, 200, { user: selfUser(updatedRow) });
   }
 
   if (pathname === '/api/auth/logout' && req.method === 'POST') {

@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { readJsonBody, sendJson } = require('../auth');
+const { readJsonBody, sendJson, isLocalRequest } = require('../auth');
 
 function loadConfig(configPath) {
   try {
@@ -48,7 +48,7 @@ async function handleSystemRoutes({ req, res, pathname, port, configPath, rootDi
     const cfg = loadConfig(configPath);
     const lanUrls = getLanAddresses(port);
     const distDir = path.join(rootDir, 'dist');
-    const ver = cfg.version || '1.0.6';
+    const ver = cfg.version || '1.1.0';
     let localExes = [];
     let localApks = [];
     try {
@@ -78,10 +78,16 @@ async function handleSystemRoutes({ req, res, pathname, port, configPath, rootDi
   }
 
   if (pathname === '/api/system/config' && req.method === 'PATCH') {
+    // Changing where updates come from must only be possible on the computer running the server.
+    // Otherwise anyone could point everyone's update button at their own (malicious) download.
+    if (!isLocalRequest(req)) {
+      return sendJson(res, 403, { error: 'Update settings can only be changed on the computer running VYRO.' });
+    }
     const body = await readJsonBody(req);
     const cfg = loadConfig(configPath);
-    if (body.githubOwner) cfg.githubOwner = String(body.githubOwner).trim().slice(0, 80);
-    if (body.githubRepo) cfg.githubRepo = String(body.githubRepo).trim().slice(0, 80);
+    const safeName = (v) => /^[A-Za-z0-9_.-]{1,80}$/.test(String(v).trim());
+    if (body.githubOwner && safeName(body.githubOwner)) cfg.githubOwner = String(body.githubOwner).trim();
+    if (body.githubRepo && safeName(body.githubRepo)) cfg.githubRepo = String(body.githubRepo).trim();
     try { fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2), 'utf8'); } catch {}
     return sendJson(res, 200, { config: cfg });
   }

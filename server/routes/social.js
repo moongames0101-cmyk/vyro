@@ -1,4 +1,4 @@
-const { readJsonBody, sendJson, publicUser } = require('../auth');
+const { readJsonBody, sendJson, publicUser, ageFromBirthday } = require('../auth');
 const { uid } = require('../db');
 
 async function handleSocialRoutes({ req, res, pathname, urlObj, db, authUser, wsHub }) {
@@ -11,7 +11,18 @@ async function handleSocialRoutes({ req, res, pathname, urlObj, db, authUser, ws
     const q = (urlObj.searchParams.get('q') || '').trim().toLowerCase();
     let rows;
     if (!q) {
-      rows = db.prepare('SELECT * FROM users WHERE id != ? ORDER BY snap_score DESC LIMIT 20').all(authUser.id);
+      // Suggestions: under-18s are only suggested to other under-18s. Anyone can still be found by exact search.
+      const myAge = ageFromBirthday(authUser.birthday);
+      const iAmMinor = myAge !== null && myAge < 18;
+      rows = db
+        .prepare('SELECT * FROM users WHERE id != ? ORDER BY snap_score DESC LIMIT 100')
+        .all(authUser.id)
+        .filter((u) => {
+          const age = ageFromBirthday(u.birthday);
+          const theyAreMinor = age !== null && age < 18;
+          return iAmMinor ? theyAreMinor || u.is_bot : !theyAreMinor;
+        })
+        .slice(0, 20);
     } else {
       const [namePart, discPart] = q.split('#');
       if (discPart) {
@@ -174,18 +185,14 @@ async function handleSocialRoutes({ req, res, pathname, urlObj, db, authUser, ws
     const other = db.prepare('SELECT * FROM users WHERE id = ?').get(otherId);
     if (!other || other.id === authUser.id) return sendJson(res, 404, { error: 'User not found.' });
     const [uA, uB] = [authUser.id, other.id].sort();
-    const dmId = `dm_${uA}_${uB}`;
-    const now = Date.now();
-    db.prepare('INSERT OR IGNORE INTO dm_threads (id, user_a, user_b, last_message_at) VALUES (?, ?, ?, ?)')
-      .run(dmId, uA, uB, now);
     const fr = db.prepare('SELECT * FROM friendships WHERE user_a = ? AND user_b = ?').get(uA, uB);
-    if (!fr) {
-      db.prepare(`
-        INSERT INTO friendships (id, user_a, user_b, status, requester_id, streak_count, streak_last_day, last_snap_at, created_at)
-        VALUES (?, ?, ?, 'accepted', ?, 0, '', 0, ?)
-      `).run(uid('fr_'), uA, uB, authUser.id, now);
-      wsHub.broadcastToUsers([authUser.id, other.id], 'friend:accept', { dmId });
+    // You can only DM people who accepted your friend request (stops strangers messaging anyone, including teens).
+    if (!fr || fr.status !== 'accepted') {
+      return sendJson(res, 403, { error: `Add ${other.display_name} as a friend first. You can message them once they accept.` });
     }
+    const dmId = `dm_${uA}_${uB}`;
+    db.prepare('INSERT OR IGNORE INTO dm_threads (id, user_a, user_b, last_message_at) VALUES (?, ?, ?, ?)')
+      .run(dmId, uA, uB, Date.now());
     return sendJson(res, 200, { dmId, user: publicUser(other) });
   }
 

@@ -152,8 +152,78 @@ function initDatabase(dataDir) {
     );
   `);
 
+  migrateSchema(db);
   seedInitialData(db);
   return db;
+}
+
+// Adds columns/tables introduced after the first release without touching existing data.
+function migrateSchema(db) {
+  const userCols = new Set(db.prepare('PRAGMA table_info(users)').all().map((c) => c.name));
+  const addUserCol = (name, def) => {
+    if (!userCols.has(name)) db.exec(`ALTER TABLE users ADD COLUMN ${name} ${def}`);
+  };
+  addUserCol('plus_until', 'INTEGER DEFAULT 0');
+  addUserCol('plus_source', "TEXT DEFAULT ''");
+  addUserCol('plus_style', "TEXT DEFAULT '{}'");
+  addUserCol('live_banned', 'INTEGER DEFAULT 0');
+  addUserCol('live_ban_reason', "TEXT DEFAULT ''");
+  addUserCol('live_banned_at', 'INTEGER DEFAULT 0');
+  addUserCol('is_admin', 'INTEGER DEFAULT 0');
+  const msgCols = new Set(db.prepare('PRAGMA table_info(messages)').all().map((c) => c.name));
+  if (!msgCols.has('effect')) db.exec("ALTER TABLE messages ADD COLUMN effect TEXT DEFAULT ''");
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS subscriptions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      store TEXT NOT NULL,
+      product_id TEXT NOT NULL,
+      purchase_token TEXT NOT NULL UNIQUE,
+      order_id TEXT DEFAULT '',
+      status TEXT NOT NULL,
+      expires_at INTEGER DEFAULT 0,
+      auto_renewing INTEGER DEFAULT 0,
+      raw TEXT DEFAULT '{}',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
+
+    CREATE TABLE IF NOT EXISTS reports (
+      id TEXT PRIMARY KEY,
+      reporter_id TEXT NOT NULL,
+      target_user_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      context_id TEXT DEFAULT '',
+      reason TEXT DEFAULT '',
+      status TEXT DEFAULT 'open',
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS age_checks (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      estimate REAL NOT NULL,
+      samples INTEGER DEFAULT 0,
+      passed INTEGER DEFAULT 0,
+      live_id TEXT DEFAULT '',
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_age_checks_user ON age_checks(user_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS lives (
+      id TEXT PRIMARY KEY,
+      host_id TEXT NOT NULL,
+      title TEXT DEFAULT '',
+      audience TEXT DEFAULT 'friends',
+      started_at INTEGER NOT NULL,
+      ended_at INTEGER DEFAULT 0,
+      ended_reason TEXT DEFAULT '',
+      peak_viewers INTEGER DEFAULT 0
+    );
+  `);
 }
 
 function seedInitialData(db) {

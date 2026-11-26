@@ -12,6 +12,8 @@ const { handleServerRoutes } = require('./routes/servers');
 const { handleMessageRoutes } = require('./routes/messages');
 const { handleStoryRoutes } = require('./routes/stories');
 const { handleSystemRoutes } = require('./routes/system');
+const { handlePlusRoutes } = require('./routes/plus');
+const { handleLiveRoutes } = require('./routes/live');
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -58,6 +60,12 @@ function createVyroServer(options = {}) {
   const host = options.host || process.env.HOST || '0.0.0.0';
 
   const db = initDatabase(dataDir);
+  const adminNames = new Set(
+    String(process.env.VYRO_ADMINS || '')
+      .split(',')
+      .map((n) => n.trim().toLowerCase())
+      .filter(Boolean)
+  );
   const wsHub = createWsHub({ db, dataDir });
 
   const cleanupInterval = setInterval(() => {
@@ -78,6 +86,8 @@ function createVyroServer(options = {}) {
   cleanupInterval.unref();
 
   const server = http.createServer(async (req, res) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'same-origin');
     const methodOverride = req.headers['x-http-method-override'];
     if (req.method === 'POST' && typeof methodOverride === 'string' && /^(PATCH|PUT|DELETE)$/i.test(methodOverride.trim())) {
       req.method = methodOverride.trim().toUpperCase();
@@ -105,9 +115,14 @@ function createVyroServer(options = {}) {
       if (pathname.startsWith('/api/')) {
         const token = extractToken(req, urlObj);
         const claims = verifyToken(token, dataDir);
-        const authUser = claims && claims.userId
+        let authUser = claims && claims.userId
           ? db.prepare('SELECT * FROM users WHERE id = ?').get(claims.userId)
           : null;
+        // VYRO_ADMINS=username1,username2 makes those accounts moderators (reports, Live bans).
+        if (authUser && !authUser.is_admin && adminNames.has(String(authUser.username).toLowerCase())) {
+          db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(authUser.id);
+          authUser = { ...authUser, is_admin: 1 };
+        }
 
         const ctx = {
           req,
@@ -129,6 +144,8 @@ function createVyroServer(options = {}) {
         if (await handleServerRoutes(ctx)) return;
         if (await handleMessageRoutes(ctx)) return;
         if (await handleStoryRoutes(ctx)) return;
+        if (await handlePlusRoutes(ctx)) return;
+        if (await handleLiveRoutes(ctx)) return;
 
         return sendJson(res, 404, { error: 'API endpoint not found.' });
       }

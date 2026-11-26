@@ -116,3 +116,19 @@ export function playChime(type = 'msg') {
     }
   } catch {}
 }
+
+// Lets screens like VYRO Live listen to socket events without touching main.js.
+const wsListeners = new Set();
+export function onWsEvent(fn) {
+  wsListeners.add(fn);
+  return () => wsListeners.delete(fn);
+}
+export function emitWsEvent(event, data) {
+  for (const fn of wsListeners) {
+    try {
+      fn(event, data);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+}

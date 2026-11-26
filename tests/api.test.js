@@ -107,11 +107,11 @@ test('signup, login, username check, and password reset', async () => {
 test('servers, channels, snaps, replay limit, screenshot alert, and stories', async () => {
   const suA = await reqJson('/api/auth/signup', {
     method: 'POST',
-    body: { email: 'user_a@test.dev', username: 'user_a', password: 'password123', displayName: 'UserA' }
+    body: { email: 'user_a@test.dev', username: 'user_a', password: 'password123', displayName: 'UserA', birthday: '2000-01-01', recoveryHint: 'test-phrase' }
   });
   const suB = await reqJson('/api/auth/signup', {
     method: 'POST',
-    body: { email: 'user_b@test.dev', username: 'user_b', password: 'password123', displayName: 'UserB' }
+    body: { email: 'user_b@test.dev', username: 'user_b', password: 'password123', displayName: 'UserB', birthday: '2000-01-01', recoveryHint: 'test-phrase' }
   });
   assert.equal(suA.status, 201);
   assert.equal(suB.status, 201);
@@ -182,6 +182,17 @@ test('servers, channels, snaps, replay limit, screenshot alert, and stories', as
     body: { mediaData: 'data:image/png;base64,iVBORw0KGgo=', caption: 'Testing Story' }
   });
   assert.equal(story.status, 201);
+
+  // Stories are friends-only: B can't see A's story until they're friends
+  const before = await reqJson('/api/stories', { token: tokenB });
+  assert.ok(!before.data.storyGroups.some((g) => g.author.id === suA.data.user.id));
+
+  const fr = await reqJson('/api/friends/request', { method: 'POST', token: tokenA, body: { target: 'user_b' } });
+  assert.equal(fr.status, 201);
+  const pending = await reqJson('/api/friends', { token: tokenB });
+  const reqId = pending.data.incoming[0].friendshipId;
+  const acc = await reqJson('/api/friends/respond', { method: 'POST', token: tokenB, body: { friendshipId: reqId, action: 'accept' } });
+  assert.equal(acc.status, 200);
 
   const storiesList = await reqJson('/api/stories', { token: tokenB });
   assert.ok(storiesList.data.storyGroups.some((g) => g.author.id === suA.data.user.id));
@@ -260,7 +271,7 @@ test('server PNA CORS preflight and X-HTTP-Method-Override PATCH support', async
 
   const su = await reqJson('/api/auth/signup', {
     method: 'POST',
-    body: { email: 'override@test.dev', username: 'override_user', password: 'password123', displayName: 'Override' }
+    body: { email: 'override@test.dev', username: 'override_user', password: 'password123', displayName: 'Override', birthday: '2000-01-01', recoveryHint: 'test-phrase' }
   });
   assert.equal(su.status, 201);
 
@@ -369,7 +380,7 @@ test('client api.js normalizes server URLs and handles APK proxy signup without 
 
     const su = await clientApi.api('/api/auth/signup', {
       method: 'POST',
-      body: { email: 'apk_mobile@test.dev', username: 'apk_mobile', password: 'password123', displayName: 'APK User' }
+      body: { email: 'apk_mobile@test.dev', username: 'apk_mobile', password: 'password123', displayName: 'APK User', birthday: '2000-01-01', recoveryHint: 'test-phrase' }
     });
     assert.equal(su.user.username, 'apk_mobile');
     assert.ok(su.token);

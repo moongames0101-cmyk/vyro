@@ -1,4 +1,4 @@
-const { readJsonBody, sendJson, publicUser } = require('../auth');
+const { readJsonBody, sendJson, publicUser, isPlusActive, safeDataUrl, PLUS_REACTIONS, PLUS_STICKERS, PLUS_EFFECTS } = require('../auth');
 const { uid, dayKey } = require('../db');
 
 function parseJsonSafe(str, fallback) {
@@ -44,6 +44,7 @@ function hydrateMessage(db, row, viewerId) {
     viewerOpened: Boolean(viewerOpened),
     viewerReplayed: Boolean(viewerOpened && viewerOpened.replayed),
     reactions,
+    effect: row.effect || '',
     createdAt: row.created_at
   };
 }
@@ -103,9 +104,17 @@ async function handleMessageRoutes({ req, res, pathname, urlObj, db, authUser, w
     const scopeId = body.scopeId;
     if (!userCanAccessScope(db, authUser.id, scopeType, scopeId)) return sendJson(res, 403, { error: 'Access denied.' });
 
-    const kind = ['text', 'snap', 'voice', 'system'].includes(body.kind) ? body.kind : 'text';
+    // 'system' messages are made by the server only, never by people.
+    const kind = ['text', 'snap', 'voice', 'sticker'].includes(body.kind) ? body.kind : 'text';
     const content = String(body.content || '').trim().slice(0, 2000);
-    const mediaData = String(body.mediaData || '').slice(0, 8_000_000);
+    const mediaKinds = kind === 'voice' ? ['audio'] : ['image', 'video'];
+    const mediaData = kind === 'snap' || kind === 'voice' ? safeDataUrl(String(body.mediaData || '').slice(0, 8_000_000), mediaKinds) : '';
+    const plus = isPlusActive(authUser);
+    if (kind === 'sticker' && (!plus || !PLUS_STICKERS.includes(content))) {
+      return sendJson(res, 403, { error: 'Premium stickers are part of VYRO+.' });
+    }
+    const effect = PLUS_EFFECTS.includes(body.effect) ? body.effect : '';
+    if (effect && !plus) return sendJson(res, 403, { error: 'Message effects are part of VYRO+.' });
     const snapMeta = body.snapMeta ? JSON.stringify(body.snapMeta) : '{}';
     const replyToId = String(body.replyToId || '');
     const ttlSec = Math.max(0, Math.min(86400, Number(body.ttlSec || 0)));
@@ -120,9 +129,9 @@ async function handleMessageRoutes({ req, res, pathname, urlObj, db, authUser, w
     db.prepare(`
       INSERT INTO messages (
         id, scope_type, scope_id, author_id, kind, content, media_data, snap_meta,
-        reply_to_id, is_ephemeral, ttl_sec, expires_at, is_saved, is_pinned, opened_by, reactions, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, '[]', '{}', ?)
-    `).run(msgId, scopeType, scopeId, authUser.id, kind, content, mediaData, snapMeta, replyToId, isEphemeral ? 1 : 0, ttlSec, expiresAt, now);
+        reply_to_id, is_ephemeral, ttl_sec, expires_at, is_saved, is_pinned, opened_by, reactions, effect, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, '[]', '{}', ?, ?)
+    `).run(msgId, scopeType, scopeId, authUser.id, kind, content, mediaData, snapMeta, replyToId, isEphemeral ? 1 : 0, ttlSec, expiresAt, effect, now);
 
     if (scopeType === 'dm') {
       db.prepare('UPDATE dm_threads SET last_message_at = ? WHERE id = ?').run(now, scopeId);
@@ -260,6 +269,10 @@ async function handleMessageRoutes({ req, res, pathname, urlObj, db, authUser, w
       const body = await readJsonBody(req);
       const emoji = String(body.emoji || '').trim().slice(0, 8);
       if (!emoji) return sendJson(res, 400, { error: 'Emoji required.' });
+      if (PLUS_REACTIONS.includes(emoji) && !isPlusActive(authUser)) {
+        const already = (parseJsonSafe(row.reactions, {})[emoji] || []).includes(authUser.id);
+        if (!already) return sendJson(res, 403, { error: 'Premium reactions are part of VYRO+.' });
+      }
       const reactions = parseJsonSafe(row.reactions, {});
       const list = Array.isArray(reactions[emoji]) ? reactions[emoji] : [];
       const idx = list.indexOf(authUser.id);

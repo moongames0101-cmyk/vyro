@@ -129,17 +129,33 @@ async function main() {
   run(`"${zipalign}" -f -p 4 "${unalignedApk}" "${alignedApk}"`);
 
   // 7. Ensure Keystore & Sign with v1 + v2 + v3 schemes for all Android versions (5.0 -> 16+)
-  const keystorePath = path.join(androidDir, 'vyro-release.keystore');
+  // The signing password comes from the VYRO_KEYSTORE_PASS environment variable,
+  // so it is never written into the code or the GitHub repo.
+  // VYRO_KEYSTORE can point at a keystore kept outside this folder (recommended).
+  const keystorePath = process.env.VYRO_KEYSTORE || path.join(androidDir, 'vyro-release.keystore');
+  let keystorePass = process.env.VYRO_KEYSTORE_PASS;
+  if (!keystorePass) {
+    if (fs.existsSync(keystorePath)) {
+      // Older keystores were made with this built-in password. Keep them working,
+      // but warn: anyone who has seen the old code knows it.
+      keystorePass = 'vyroapp123';
+      console.warn('WARNING: VYRO_KEYSTORE_PASS is not set, using the old built-in password.');
+      console.warn('         Make a new keystore with your own password before publishing (see STORE-RELEASE.md).');
+    } else {
+      throw new Error('Set VYRO_KEYSTORE_PASS to a strong password before the first build, e.g.  set VYRO_KEYSTORE_PASS=your-own-password');
+    }
+  }
+  process.env.VYRO_KEYSTORE_PASS = keystorePass;
   if (!fs.existsSync(keystorePath)) {
     console.log('Generating release keystore...');
-    run(`"${keytool}" -genkeypair -v -keystore "${keystorePath}" -alias vyro -keyalg RSA -keysize 2048 -validity 10000 -storepass vyroapp123 -keypass vyroapp123 -dname "CN=VYRO, OU=Engineering, O=VYRO, L=London, ST=London, C=GB"`);
+    run(`"${keytool}" -genkeypair -v -keystore "${keystorePath}" -alias vyro -keyalg RSA -keysize 2048 -validity 10000 -storepass:env VYRO_KEYSTORE_PASS -keypass:env VYRO_KEYSTORE_PASS -dname "CN=VYRO, OU=Engineering, O=VYRO, L=London, ST=London, C=GB"`);
   }
 
   const signedApk = path.join(buildDir, 'VYRO-signed.apk');
   console.log('Signing APK with apksigner (v1 + v2 + v3)...');
   run(
-    `"${apksigner}" sign --ks "${keystorePath}" --ks-pass pass:vyroapp123 ` +
-      `--ks-key-alias vyro --key-pass pass:vyroapp123 ` +
+    `"${apksigner}" sign --ks "${keystorePath}" --ks-pass env:VYRO_KEYSTORE_PASS ` +
+      `--ks-key-alias vyro --key-pass env:VYRO_KEYSTORE_PASS ` +
       `--min-sdk-version ${MIN_SDK} --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true ` +
       `--out "${signedApk}" "${alignedApk}"`
   );

@@ -1,5 +1,6 @@
 import { renderFramedAvatarCanvas, computeFitScales } from './components/AvatarCropper.js';
 import { escapeHtml } from './state.js';
+import { avatarBorderClass } from './plus.js';
 
 export const AVATAR_GRADIENTS = [
   'linear-gradient(135deg,#8B5CF6,#FACC15)',
@@ -121,7 +122,7 @@ export function renderAvatarHtml(user, size = 38, showPresence = false) {
   const dot = showPresence
     ? `<span class="presence-dot ${escapeHtml(user.presence || 'offline')}"></span>`
     : '';
-  return `<div class="vyro-avatar" style="width:${size}px;height:${size}px;">
+  return `<div class="vyro-avatar${avatarBorderClass(user)}" style="width:${size}px;height:${size}px;">
     <div class="vyro-avatar-inner" style="background:${escapeHtml(bg)};">${inner}</div>
     ${dot}
   </div>`;

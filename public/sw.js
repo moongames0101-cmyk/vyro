@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vyro-shell-v1.0.6';
+const CACHE_NAME = 'vyro-shell-v1.1.0';
 const SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -7,6 +7,7 @@ const SHELL_ASSETS = [
   '/css/auth.css',
   '/css/app.css',
   '/css/modals.css',
+  '/css/plus.css',
   '/assets/icon-192.png',
   '/assets/icon-512.png'
 ];

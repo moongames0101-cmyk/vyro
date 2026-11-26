@@ -146,7 +146,8 @@ function createWindow() {
   mainWindow.loadURL(serverUrl);
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    // Only open normal web links in the browser (never file:, javascript: or custom schemes).
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
 
