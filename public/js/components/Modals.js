@@ -1,4 +1,4 @@
-import { api, getServerUrl, isApkMode, saveServerUrl, setToken } from '../api.js';
+import { api, getDefaultServerUrl, getServerUrl, isApkMode, isUsingDefaultServer, saveServerUrl, setToken } from '../api.js';
 import { openAvatarCropperModal } from './AvatarCropper.js';
 import {
   AVATAR_GRADIENTS,
@@ -322,10 +322,12 @@ export async function openMobileQrModal() {
       const body = card.querySelector('#qr-modal-body');
       try {
         const net = await api('/api/network-info');
-        const primaryUrl = net.lanUrls?.[0]?.url || location.origin;
+        const primaryUrl = net.publicUrl || net.lanUrls?.[0]?.url || location.origin;
         body.innerHTML = `
           <p style="font-size:13px;color:var(--text-secondary);">
-            Open your phone camera (same Wi-Fi) and scan this QR code to jump right into VYRO on mobile — or install it to your Home Screen as a PWA!
+            ${net.publicUrl
+              ? 'Scan this with your phone camera to open VYRO on your phone. It works on any connection, and you can add it to your Home Screen.'
+              : 'Open your phone camera (same Wi-Fi) and scan this QR code to jump right into VYRO on mobile — or install it to your Home Screen as a PWA!'}
           </p>
           <div class="qr-card">${renderQrSvg(primaryUrl, 196)}</div>
           <div style="display:flex;gap:8px;">
@@ -646,7 +648,7 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
                 <div class="field">
                   <label>Server address (optional)</label>
                   <div style="display:flex;gap:8px;">
-                    <input class="input-control" id="srv-url-input" value="${escapeHtml(getServerUrl())}" placeholder="${escapeHtml(isApkMode() ? '192.168.0.x:3847 or https://...' : `${location.origin} (local)`)}" />
+                    <input class="input-control" id="srv-url-input" value="${escapeHtml(isUsingDefaultServer() ? '' : getServerUrl())}" placeholder="${escapeHtml(getDefaultServerUrl() ? 'Blank uses VYRO online' : isApkMode() ? '192.168.0.x:3847 or https://...' : `${location.origin} (local)`)}" />
                     <button type="button" class="btn btn-secondary btn-sm" id="srv-url-save">Apply</button>
                   </div>
                 </div>

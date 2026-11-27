@@ -1,6 +1,9 @@
+import { DEFAULT_SERVER_URL } from './config.js';
+
 const STORAGE_TOKEN = 'vyro_token';
 const STORAGE_SERVER = 'vyro_server_url';
 const STORAGE_SAVED_ACCOUNTS = 'vyro_saved_accounts';
+const STORAGE_MOVED_ONLINE = 'vyro_moved_to_online_server';
 
 let apkMode = false;
 let apkLocalIps = [];
@@ -85,11 +88,54 @@ export function normalizeServerUrl(raw) {
   }
 }
 
-export function getServerUrl() {
+export function isLanUrl(url) {
+  try {
+    const host = new URL(url).hostname;
+    return isPrivateOrLocalHost(host) || /^\d+\.\d+\.\d+\.\d+$/.test(host);
+  } catch {
+    return false;
+  }
+}
+
+// The server someone picked in settings, if any.
+function getStoredServerUrl() {
   const stored = (localStorage.getItem(STORAGE_SERVER) || '').trim();
   if (!stored) return '';
   const { valid, url } = normalizeServerUrl(stored);
   return valid ? url : stored.replace(/\/+$/, '');
+}
+
+// The Windows and Android apps use the online server by default. The website
+// keeps talking to the server it was opened from.
+export function getDefaultServerUrl() {
+  if (!DEFAULT_SERVER_URL) return '';
+  if (!window.vyroDesktop && !apkMode) return '';
+  return normalizeServerUrl(DEFAULT_SERVER_URL).url;
+}
+
+export function isUsingDefaultServer() {
+  return !getStoredServerUrl() && !!getDefaultServerUrl();
+}
+
+export function getServerUrl() {
+  return getStoredServerUrl() || getDefaultServerUrl();
+}
+
+// The first time an app opens with an online server available, a saved home
+// Wi-Fi address is dropped so the app starts working away from home. It only
+// happens once: someone can still pick their PC again in settings afterwards.
+function moveOffHomeServerOnce() {
+  if (!DEFAULT_SERVER_URL) return false;
+  try {
+    if (localStorage.getItem(STORAGE_MOVED_ONLINE)) return false;
+    localStorage.setItem(STORAGE_MOVED_ONLINE, '1');
+    const stored = getStoredServerUrl();
+    if (!stored || !isLanUrl(stored)) return false;
+    localStorage.removeItem(STORAGE_SERVER);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function syncServerUrlToApk(clean) {
@@ -105,7 +151,8 @@ async function syncServerUrlToApk(clean) {
 
 export function setServerUrl(url) {
   const { valid, url: clean } = normalizeServerUrl(url);
-  const next = valid ? clean : '';
+  // Picking the online server is the same as picking nothing, so the app keeps following the default.
+  const next = valid && clean !== getDefaultServerUrl() ? clean : '';
   if (!next) localStorage.removeItem(STORAGE_SERVER);
   else localStorage.setItem(STORAGE_SERVER, next);
   syncServerUrlToApk(next);
@@ -117,9 +164,10 @@ export async function saveServerUrl(url) {
   if (!valid) {
     throw new Error('Invalid server URL. Example: 192.168.0.10:3847 or https://vyro.onrender.com');
   }
-  if (!clean) localStorage.removeItem(STORAGE_SERVER);
-  else localStorage.setItem(STORAGE_SERVER, clean);
-  await syncServerUrlToApk(clean);
+  const next = clean === getDefaultServerUrl() ? '' : clean;
+  if (!next) localStorage.removeItem(STORAGE_SERVER);
+  else localStorage.setItem(STORAGE_SERVER, next);
+  await syncServerUrlToApk(next);
   return clean;
 }
 
@@ -138,6 +186,7 @@ export function getApkLocalIps() {
 export async function initApkEnvironment() {
   if (window.vyroDesktop) {
     apkMode = false;
+    moveOffHomeServerOnce();
     return { isApk: false };
   }
   if (location.hostname !== '127.0.0.1' && location.hostname !== 'localhost') {
@@ -155,13 +204,14 @@ export async function initApkEnvironment() {
     if (data && data.isApk === true) {
       apkMode = true;
       apkLocalIps = Array.isArray(data.localIps) ? data.localIps : [];
-      const localStored = getServerUrl();
+      const localStored = getStoredServerUrl();
       const nativeStored = data.serverUrl ? normalizeServerUrl(data.serverUrl).url : '';
       if (!localStored && nativeStored) {
         localStorage.setItem(STORAGE_SERVER, nativeStored);
       } else if (localStored && !nativeStored) {
         await syncServerUrlToApk(localStored);
       }
+      if (moveOffHomeServerOnce()) await syncServerUrlToApk('');
       return { isApk: true, serverUrl: getServerUrl(), localIps: apkLocalIps };
     }
   } catch {}
@@ -192,9 +242,11 @@ export async function probeServerHealth(candidateUrl, timeoutMs = 2500) {
   } catch (err) {
     return {
       ok: false,
-      error: err?.name === 'AbortError'
-        ? `Timed out connecting to ${url}. Make sure your phone and PC are on the same Wi-Fi.`
-        : `Could not reach VYRO server at ${url}.`
+      error: err?.name !== 'AbortError'
+        ? `Could not reach VYRO server at ${url}.`
+        : isLanUrl(url)
+          ? `Timed out connecting to ${url}. Make sure your phone and PC are on the same Wi-Fi.`
+          : `${url} is taking a while to answer. It may be waking up, so try again in a minute.`
     };
   } finally {
     clearTimeout(timer);
@@ -214,6 +266,27 @@ export async function discoverLanServers() {
     };
   } catch {
     return { found: [], localIps: apkLocalIps };
+  }
+}
+
+// The free online server goes to sleep when nobody has used it for a while, and
+// the first request after that can take up to a minute. Keep asking until it
+// answers. onSlow runs once if it is not quick, so the app can say why it waits.
+export async function wakeServer(onSlow, maxWaitMs = 90000) {
+  const url = getServerUrl();
+  if (!url || isLanUrl(url)) return true;
+  const started = Date.now();
+  const slowTimer = setTimeout(() => onSlow?.(), 2500);
+  try {
+    while (Date.now() - started < maxWaitMs) {
+      if (navigator.onLine === false) return false;
+      const check = await probeServerHealth(url, 15000);
+      if (check.ok) return true;
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+    return false;
+  } finally {
+    clearTimeout(slowTimer);
   }
 }
 
@@ -255,9 +328,11 @@ export async function api(path, options = {}) {
     });
   } catch (networkErr) {
     const err = new Error(
-      base
-        ? `Could not reach VYRO server (${base}). Check Wi-Fi or server status.`
-        : 'Network connection failed. Check your server connection.'
+      !base
+        ? 'Network connection failed. Check your server connection.'
+        : isLanUrl(base)
+          ? `Could not reach VYRO server (${base}). Check Wi-Fi or server status.`
+          : 'Could not reach VYRO online. Check your internet connection and try again.'
     );
     err.code = 'SERVER_UNREACHABLE';
     err.cause = networkErr;

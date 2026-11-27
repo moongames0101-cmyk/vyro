@@ -182,7 +182,13 @@ function createVyroServer(options = {}) {
     }
   });
 
-  server.on('upgrade', (req, socket) => wsHub.handleUpgrade(req, socket));
+  // Live connections are tracked so stop() can end them instead of waiting on them.
+  const upgradedSockets = new Set();
+  server.on('upgrade', (req, socket) => {
+    upgradedSockets.add(socket);
+    socket.once('close', () => upgradedSockets.delete(socket));
+    wsHub.handleUpgrade(req, socket);
+  });
 
   return {
     server,
@@ -200,11 +206,22 @@ function createVyroServer(options = {}) {
     stop() {
       clearInterval(cleanupInterval);
       return new Promise((resolve) => {
-        server.close(() => {
+        const closeServer = () => server.close(() => {
           try { db.exec('PRAGMA wal_checkpoint(TRUNCATE);'); } catch {}
           try { db.close(); } catch {}
           resolve();
         });
+        // End live connections first and let the hub finish its goodbyes
+        // (it writes to the database) before the database closes.
+        let open = upgradedSockets.size;
+        if (!open) return closeServer();
+        for (const socket of Array.from(upgradedSockets)) {
+          socket.once('close', () => {
+            open -= 1;
+            if (open === 0) setImmediate(closeServer);
+          });
+          socket.destroy();
+        }
       });
     }
   };
@@ -219,6 +236,20 @@ if (require.main === module) {
     console.error('Failed to start VYRO server:', err);
     process.exit(1);
   });
+
+  // Hosts like Render send SIGTERM before sleeping or redeploying. Close the
+  // database properly so the backup (deploy/start.sh) gets the last changes.
+  let stopping = false;
+  const shutdown = (signal) => {
+    if (stopping) return;
+    stopping = true;
+    console.log(`${signal} received, closing VYRO`);
+    const forceExit = setTimeout(() => process.exit(0), 5000);
+    forceExit.unref();
+    app.stop().then(() => process.exit(0));
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 module.exports = { createVyroServer };

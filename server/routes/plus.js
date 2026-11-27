@@ -64,7 +64,9 @@ function accountRef(userId) {
 }
 
 function publicBaseUrl(req) {
-  if (process.env.VYRO_PUBLIC_URL) return process.env.VYRO_PUBLIC_URL.replace(/\/+$/, '');
+  // Render fills in RENDER_EXTERNAL_URL with the service's own https:// address.
+  const configured = process.env.VYRO_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL;
+  if (configured) return configured.replace(/\/+$/, '');
   const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() || 'http';
   return `${proto}://${req.headers.host || 'localhost'}`;
 }

@@ -1,13 +1,27 @@
 services:
   - type: web
     name: vyro-chat
-    runtime: node
+    runtime: docker
     plan: free
-    buildCommand: "echo VYRO ready"
-    startCommand: "node server/index.js"
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
     envVars:
       - key: PORT
         value: 3847
+      # Keeps people signed in when the server restarts. Render makes this up for you.
+      - key: VYRO_SECRET
+        generateValue: true
+      # Backblaze B2 backup. The free plan wipes the server's files on every restart,
+      # so without these four, every account and message is lost. See README.
+      - key: BACKUP_BUCKET
+        sync: false
+      - key: BACKUP_ENDPOINT
+        sync: false
+      - key: BACKUP_KEY_ID
+        sync: false
+      - key: BACKUP_APP_KEY
+        sync: false
       # Your VYRO username(s) that can review reports and ban people from Live
       - key: VYRO_ADMINS
         sync: false
@@ -21,14 +35,8 @@ services:
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
-      - key: VYRO_PUBLIC_URL
-        sync: false
       # VYRO+ Google Play billing - leave empty until the app is on Google Play
       - key: VYRO_GOOGLE_SERVICE_ACCOUNT
         sync: false
       - key: VYRO_RTDN_SECRET
         sync: false
-    disk:
-      name: vyro-data
-      mountPath: /opt/render/project/src/data
-      sizeGB: 1

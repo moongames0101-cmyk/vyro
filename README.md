@@ -38,6 +38,34 @@ Open `http://localhost:3847` on PC, or click **Mobile QR** inside VYRO to scan a
 
 ---
 
+## VYRO Online (so sign-in works from anywhere)
+
+The Windows and Android apps use one online server, set in `public/js/config.js`
+(`DEFAULT_SERVER_URL`). It runs free on Render, with the database backed up to a free
+Backblaze B2 bucket, because Render's free plan wipes the server's files every time it
+restarts or goes to sleep.
+
+1. **Backblaze B2** (free, no card): create a **private** bucket, then under
+   *Application Keys* add a key that can read and write that bucket. Note the bucket
+   name, the bucket's **Endpoint** (like `s3.eu-central-003.backblazeb2.com`), the
+   **keyID** and the **applicationKey** (shown once).
+2. **Render**: *New → Blueprint*, pick this repository, and fill in
+   `BACKUP_BUCKET`, `BACKUP_ENDPOINT`, `BACKUP_KEY_ID` and `BACKUP_APP_KEY`.
+   Leave the Stripe and Google ones empty until you need them. `VYRO_SECRET` is
+   filled in for you.
+3. Put the `https://….onrender.com` address in `public/js/config.js` and release a new version.
+
+On the free plan the server sleeps after 15 minutes with nobody on it, and the first
+person back waits up to a minute while it wakes (the app says so). The log shows
+`Backups on:` when the backup is working; `WARNING: backups are off` means a
+`BACKUP_` setting is missing.
+
+How it runs: `Dockerfile` → `deploy/start.sh` → Litestream (`deploy/litestream.yml`)
+restores the database from the bucket if the server's disk is empty, then runs
+`node server/index.js` and copies every change to the bucket about once a second.
+
+---
+
 ## Building the Windows `.exe` Locally
 
 ```bash

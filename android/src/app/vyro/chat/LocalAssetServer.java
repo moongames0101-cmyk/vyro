@@ -394,8 +394,9 @@ public class LocalAssetServer {
                 String pathAndQuery = rawTarget.startsWith("/") ? rawTarget : "/" + rawTarget;
                 URL url = new URL(targetBase + pathAndQuery);
                 conn = (HttpURLConnection) url.openConnection();
-                conn.setConnectTimeout(5000);
-                conn.setReadTimeout(20000);
+                // The free online server can take up to a minute to wake up.
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(70000);
                 conn.setUseCaches(false);
                 conn.setInstanceFollowRedirects(false);
 
