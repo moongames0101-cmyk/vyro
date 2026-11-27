@@ -106,7 +106,7 @@ function headHtml(title, right = '') {
 function eligibilityHtml() {
   if (!eligibility) return '';
   if (eligibility.ok) {
-    return `<button class="btn btn-primary live-go-btn" id="live-go">🔴 Go Live</button>`;
+    return `<button class="btn btn-primary live-go-btn" id="live-go">Go live</button>`;
   }
   if (eligibility.code === 'birthday_required') {
     return `<form class="live-notice" id="live-bday-form">
@@ -139,7 +139,7 @@ function listHtml() {
           <div class="live-card-name">${renderNameHtml(l.host, { badgeSize: 13 })}</div>
           <div class="live-card-title">${escapeHtml(l.title)}</div>
         </div></div>
-        <div class="live-card-foot">${l.audience === 'adults' ? '18+ only' : 'Everyone'}${l.host && state.user && l.host.id === state.user.id ? ' • You' : ''}</div>
+        <div class="live-card-foot">${l.host && state.user && l.host.id === state.user.id ? 'Your live, ' : ''}${l.audience === 'adults' ? '18+ only' : 'open to everyone'}</div>
       </button>`
     )
     .join('');
@@ -152,7 +152,7 @@ function listHtml() {
       ${eligibilityHtml()}
     </div>
     <div class="live-section-title">Live now ${loading ? '<span class="field-hint">loading...</span>' : ''}</div>
-    ${cards ? `<div class="live-grid">${cards}</div>` : `<div class="live-empty"><div class="live-empty-orb">📡</div><div>No one is live right now.</div><div class="field-hint">Lives you can watch will show up here.</div></div>`}`;
+    ${cards ? `<div class="live-grid">${cards}</div>` : `<div class="live-empty"><div class="live-empty-orb">📺</div><div>No one is live right now.</div><div class="field-hint">Lives you can watch will show up here.</div></div>`}`;
 }
 
 function setupHtml() {
@@ -184,7 +184,7 @@ function setupHtml() {
         </div>
         <div style="display:flex;gap:10px;">
           <button type="button" class="btn btn-secondary" id="live-cancel">Cancel</button>
-          <button type="submit" class="btn btn-primary" style="flex:1;" ${faceCfg.required && scan.state !== 'passed' ? 'disabled title="Do the age scan first"' : ''}>🔴 Start live</button>
+          <button type="submit" class="btn btn-primary live-go-btn" style="flex:1;" ${faceCfg.required && scan.state !== 'passed' ? 'disabled title="Do the age scan first"' : ''}>Start live</button>
         </div>
       </form>
     </div>`;
@@ -201,7 +201,7 @@ function scanInstruction() {
 function ageScanCardHtml() {
   const privacy = `<span class="field-hint">The scan happens on your device. Your face is never uploaded or saved. VYRO only keeps the estimated age.</span>`;
   if (scan.state === 'passed') {
-    return `<div class="scan-card ok"><strong>✅ Age check passed</strong><span class="field-hint">You can go live now.</span></div>`;
+    return `<div class="scan-card ok"><strong>Age check passed</strong><span class="field-hint">You can go live now.</span></div>`;
   }
   if (scan.state === 'loading') {
     return `<div class="scan-card"><strong>Getting the age check ready...</strong>${privacy}</div>`;
@@ -328,10 +328,10 @@ function stageHtml() {
         <div class="live-actions">
           ${
             isHost
-              ? `<button class="btn btn-secondary btn-sm" id="live-mic">🎙️ Mic</button>
-                 <button class="btn btn-secondary btn-sm" id="live-cam">📷 Camera</button>
+              ? `<button class="btn btn-secondary btn-sm" id="live-mic">Mic</button>
+                 <button class="btn btn-secondary btn-sm" id="live-cam">Camera</button>
                  <button class="btn btn-danger btn-sm" id="live-end">End live</button>`
-              : `<button class="btn btn-secondary btn-sm" id="live-report">🚩 Report</button>
+              : `<button class="btn btn-secondary btn-sm" id="live-report">Report</button>
                  <button class="btn btn-danger btn-sm" id="live-leave">Leave</button>`
           }
         </div>

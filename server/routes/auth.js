@@ -60,7 +60,7 @@ async function handleAuthRoutes({ req, res, pathname, urlObj, db, dataDir, authU
     const displayName = String(body.displayName || username).trim();
     const birthday = String(body.birthday || '').trim();
     const bio = String(body.bio || '').trim().slice(0, 180);
-    const statusText = String(body.statusText || 'New on VYRO ⚡').trim().slice(0, 80);
+    const statusText = String(body.statusText || '').trim().slice(0, 80);
     const recoveryHint = String(body.recoveryHint || '').trim().slice(0, 80);
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {

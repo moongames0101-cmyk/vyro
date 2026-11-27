@@ -170,6 +170,8 @@ function migrateSchema(db) {
   addUserCol('live_ban_reason', "TEXT DEFAULT ''");
   addUserCol('live_banned_at', 'INTEGER DEFAULT 0');
   addUserCol('is_admin', 'INTEGER DEFAULT 0');
+  // The old automatic status text is cleared so people's real status (or nothing) shows instead
+  db.prepare("UPDATE users SET status_text = '' WHERE status_text = 'New on VYRO ⚡'").run();
   const msgCols = new Set(db.prepare('PRAGMA table_info(messages)').all().map((c) => c.name));
   if (!msgCols.has('effect')) db.exec("ALTER TABLE messages ADD COLUMN effect TEXT DEFAULT ''");
 

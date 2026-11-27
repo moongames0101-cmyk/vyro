@@ -33,7 +33,8 @@ export async function renderModPanel(body) {
                   ${r.target ? renderAvatarHtml(r.target, 38) : ''}
                   <div style="min-width:0;">
                     <strong>${escapeHtml(r.target ? `${r.target.displayName} (@${r.target.username})` : 'Deleted user')}</strong>
-                    <div class="field-hint">${escapeHtml(KIND_LABELS[r.kind] || r.kind)} • ${r.kind === 'age_check' ? 'flagged by the VYRO face scan' : `reported by @${escapeHtml(r.reporter?.username || '?')}`} • ${new Date(r.createdAt).toLocaleString()}</div>
+                    <div class="field-hint">${escapeHtml(KIND_LABELS[r.kind] || r.kind)}, ${r.kind === 'age_check' ? 'flagged by the face scan' : `reported by @${escapeHtml(r.reporter?.username || '?')}`}</div>
+                    <div class="field-hint">${new Date(r.createdAt).toLocaleString()}</div>
                     ${r.reason ? `<div style="font-size:12.5px;color:var(--text-secondary);margin-top:3px;">“${escapeHtml(r.reason)}”</div>` : ''}
                     ${r.target?.liveBanned ? '<div class="field-hint" style="color:#F87171;">Already banned from Live</div>' : ''}
                   </div>

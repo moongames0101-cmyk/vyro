@@ -11,7 +11,7 @@ import {
 } from './Modals.js';
 import { openSnapStudioModal } from './SnapStudio.js';
 import { openLiveHub } from './Live.js';
-import { PLUS_EFFECTS, PLUS_REACTIONS, STICKERS, burstConfetti, isPlus, renderNameHtml, stickerHtml } from '../plus.js';
+import { PLUS_EFFECTS, PLUS_REACTIONS, STICKERS, burstConfetti, crownBadgeHtml, isPlus, renderNameHtml, stickerHtml } from '../plus.js';
 import { openSnapViewer, openStoryViewer } from './Viewers.js';
 
 let typingTimeout = null;
@@ -123,32 +123,6 @@ function renderAuroraBackdropHtml() {
   `;
 }
 
-function renderBannerArtworkSvg() {
-  return `
-    <svg class="hero-scenic-svg" viewBox="0 0 640 160" preserveAspectRatio="xMaxYMax slice" aria-hidden="true">
-      <defs>
-        <radialGradient id="vyroMoonGlow" cx="72%" cy="32%" r="48%">
-          <stop offset="0%" stop-color="#FEF08A" stop-opacity="0.88" />
-          <stop offset="42%" stop-color="#D946EF" stop-opacity="0.52" />
-          <stop offset="100%" stop-color="#8B5CF6" stop-opacity="0" />
-        </radialGradient>
-        <linearGradient id="vyroPeak1" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#4C1D95" stop-opacity="0.78" />
-          <stop offset="100%" stop-color="#090A14" stop-opacity="0.96" />
-        </linearGradient>
-        <linearGradient id="vyroPeak2" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#1E1B4B" stop-opacity="0.92" />
-          <stop offset="65%" stop-color="#581C87" stop-opacity="0.85" />
-          <stop offset="100%" stop-color="#B45309" stop-opacity="0.72" />
-        </linearGradient>
-      </defs>
-      <circle cx="465" cy="52" r="78" fill="url(#vyroMoonGlow)" />
-      <circle cx="465" cy="52" r="28" fill="#FDE047" fill-opacity="0.22" stroke="#FDE047" stroke-opacity="0.45" stroke-width="1" />
-      <path d="M120 160 L260 66 L360 112 L485 38 L640 120 L640 160 Z" fill="url(#vyroPeak1)" />
-      <path d="M180 160 L320 92 L430 132 L545 72 L640 124 L640 160 Z" fill="url(#vyroPeak2)" />
-    </svg>
-  `;
-}
 
 export function renderWorkspace(container, { wsClient, loadAllData, loadMessages }) {
   const user = state.user;
@@ -190,7 +164,7 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
   let scopeCrumb = 'Home';
   if (navTab === 'voice') scopeCrumb = `Voice Stage • ${voiceChannel.name}`;
   else if (navTab === 'discover') scopeCrumb = 'Discover';
-  else if (navTab === 'friends') scopeCrumb = 'Squad & Streaks';
+  else if (navTab === 'friends') scopeCrumb = 'Friends';
   else if (currentScopeType === 'channel' && activeChannel) scopeCrumb = `# ${activeChannel.name}`;
   else if (activeFriendEntry) scopeCrumb = `@${activeFriendEntry.user.displayName}`;
 
@@ -209,8 +183,8 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
       <header class="vyro-titlebar">
         <div class="titlebar-left">
           <div class="live-sync-pill">
-            <span class="live-dot ${state.wsConnected ? '' : 'reconnecting'}"></span>
-            <span style="color:${state.wsConnected ? '#86EFAC' : '#FCD34D'};">${state.wsConnected ? 'Live' : 'Syncing'}</span>
+            <span class="sync-dot ${state.wsConnected ? '' : 'reconnecting'}"></span>
+            <span>${state.wsConnected ? 'Connected' : 'Reconnecting…'}</span>
           </div>
           <div class="scope-crumb-pill">${escapeHtml(scopeCrumb)}</div>
         </div>
@@ -250,77 +224,69 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
                 <img src="/assets/icon-192.png" alt="VYRO" />
                 <div class="rail-brand-word">VYRO</div>
               </div>
-              <span class="rail-ver-tag">PRISM</span>
             </div>
             <nav class="rail-nav-list">
               <button class="rail-nav-btn ${navTab === 'home' ? 'active' : ''}" data-rail-nav="home">${ICONS.home}<span>Home</span></button>
               <button class="rail-nav-btn ${navTab === 'messages' ? 'active' : ''}" data-rail-nav="messages">${ICONS.message}<span>Messages</span>${unreadSnapsTotal > 0 ? `<span class="rail-nav-badge">${unreadSnapsTotal}</span>` : ''}</button>
               <button class="rail-nav-btn ${navTab === 'communities' ? 'active' : ''}" data-rail-nav="communities">${ICONS.globe}<span>Communities</span></button>
-              <button class="rail-nav-btn ${navTab === 'voice' ? 'active' : ''}" data-rail-nav="voice">${ICONS.voiceStage}<span>Voice Stage</span>${inThisVc.length > 0 || state.myVoiceChannelId ? `<span class="rail-nav-badge" style="background:var(--status-online);color:#041208;">LIVE</span>` : ''}</button>
+              <button class="rail-nav-btn ${navTab === 'voice' ? 'active' : ''}" data-rail-nav="voice">${ICONS.voiceStage}<span>Voice</span>${inThisVc.length > 0 || state.myVoiceChannelId ? `<span class="rail-nav-badge on-call">on call</span>` : ''}</button>
               <button class="rail-nav-btn ${navTab === 'discover' ? 'active' : ''}" data-rail-nav="discover">${ICONS.compass}<span>Discover</span></button>
               <button class="rail-nav-btn" id="rail-live-btn">${ICONS.video}<span>VYRO Live</span><span class="rail-nav-badge live-badge">18+</span></button>
-              <button class="rail-nav-btn rail-plus-btn" id="rail-plus-btn"><span class="rail-plus-crown">👑</span><span>VYRO+</span>${isPlus(user) ? '' : `<span class="rail-nav-badge plus-price-badge">£1.99</span>`}</button>
+              <button class="rail-nav-btn rail-plus-btn" id="rail-plus-btn">${crownBadgeHtml(18)}<span>VYRO+</span>${isPlus(user) ? '' : `<span class="rail-nav-badge plus-price-badge">£1.99</span>`}</button>
               <button class="rail-nav-btn ${navTab === 'friends' ? 'active' : ''}" data-rail-nav="friends">${ICONS.users}<span>Friends</span>${state.incomingRequests.length ? `<span class="rail-nav-badge">${state.incomingRequests.length}</span>` : ''}</button>
-              <button class="rail-nav-btn" id="rail-updates-btn">${ICONS.refresh}<span>Updates</span>${state.updateInfo?.updateAvailable || state.desktopUpdateState?.stage === 'ready' ? `<span class="rail-nav-badge" style="background:var(--vyro-gold);color:#090910;">NEW</span>` : ''}</button>
+              <button class="rail-nav-btn" id="rail-updates-btn">${ICONS.refresh}<span>Updates</span>${state.updateInfo?.updateAvailable || state.desktopUpdateState?.stage === 'ready' ? `<span class="rail-nav-badge new-badge">new</span>` : ''}</button>
               <button class="rail-nav-btn" id="rail-settings-btn">${ICONS.settings}<span>Settings</span></button>
             </nav>
           </div>
 
           <div class="rail-bottom-stack">
-            <div class="level-xp-card">
+            <div class="level-xp-card" title="${xpInLevel} of 500 XP to the next level">
               <div class="level-xp-top">
                 <span>Level ${level}</span>
-                <span style="color:var(--vyro-gold);">👻 ${user.snapScore || 0}</span>
+                <span class="xp-sub">${xpInLevel}/500 XP</span>
               </div>
               <div class="xp-track"><div class="xp-fill" style="width:${xpPct}%;"></div></div>
-              <div class="xp-sub">${xpInLevel} / 500 XP • ${activeStreaksTotal} 🔥</div>
             </div>
 
             <div class="rail-user-card" id="open-my-settings">
               <div style="display:flex;align-items:center;gap:9px;min-width:0;">
                 ${renderAvatarHtml(user, 34, true)}
                 <div style="min-width:0;">
-                  <div style="font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${renderNameHtml(user, { badgeSize: 13 })}</div>
-                  <div style="font-size:11px;color:var(--status-online);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(user.statusText || 'Online')}</div>
+                  <div style="font-size:13px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${renderNameHtml(user, { badgeSize: 13 })}</div>
+                  <div style="font-size:12px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(user.statusText || 'Online')}</div>
                 </div>
               </div>
-              <span style="color:var(--text-muted);font-weight:800;font-size:15px;">›</span>
+              <span style="color:var(--text-muted);font-weight:650;font-size:15px;">›</span>
             </div>
           </div>
         </aside>
 
         <section class="center-glass-frame">
           <div class="hero-welcome-banner ${heroCollapsed ? 'collapsed' : ''}">
-            ${renderBannerArtworkSvg()}
             <div class="hero-welcome-left">
-              <div class="hero-accent-bars"><span></span><span></span></div>
               <div style="min-width:0;">
-                <div class="hero-welcome-title">
-                  <span>${getTimeGreeting()}, ${escapeHtml(user.displayName)}</span>
-                  <span class="hero-stat-chip hide-sm">● ${onlineCount} Online</span>
-                  ${activeStreaksTotal > 0 ? `<span class="hero-stat-chip hide-sm">🔥 ${activeStreaksTotal} Streak${activeStreaksTotal > 1 ? 's' : ''}</span>` : ''}
-                </div>
+                <div class="hero-welcome-title">${getTimeGreeting()}, ${escapeHtml(user.displayName)}</div>
                 ${
                   heroCollapsed
                     ? ''
-                    : `<div class="hero-welcome-sub">Drop a timed Flash Snap, share a 24h Story, or jump into Spatial Voice.</div>`
+                    : `<div class="hero-welcome-sub"><span class="online-dot"></span>${onlineCount} ${onlineCount === 1 ? 'friend' : 'friends'} online${activeStreaksTotal > 0 ? `<span class="hero-sep"></span>🔥 ${activeStreaksTotal} ${activeStreaksTotal > 1 ? 'streaks' : 'streak'} going` : ''}</div>`
                 }
               </div>
             </div>
             <div class="hero-actions-right hide-sm">
-              <button class="btn btn-secondary btn-sm" id="hero-snap-btn">${ICONS.camera} New Snap</button>
+              <button class="btn btn-primary btn-sm" id="hero-snap-btn">${ICONS.camera} New snap</button>
               <button class="btn btn-secondary btn-sm" id="hero-voice-btn">${ICONS.voiceStage} Voice</button>
-              <button class="btn btn-primary btn-sm" id="hero-qr-btn">${ICONS.qr} Mobile Connect</button>
-              <button class="dock-icon-btn" id="toggle-hero-btn" title="${heroCollapsed ? 'Expand Banner' : 'Compact Banner'}" style="color:#fff;">${heroCollapsed ? '▾' : '▴'}</button>
+              <button class="btn btn-ghost btn-sm" id="hero-qr-btn" title="Show a QR code to log in on your phone">${ICONS.qr} Phone</button>
+              <button class="dock-icon-btn" id="toggle-hero-btn" title="${heroCollapsed ? 'Show more' : 'Show less'}">${heroCollapsed ? '▾' : '▴'}</button>
             </div>
           </div>
 
           <div class="stories-strip">
             <button class="story-bubble-btn" id="add-story-btn">
               <div class="story-ring add-story">
-                <div class="story-ring-inner" style="width:38px;height:38px;font-size:18px;font-weight:800;color:var(--vyro-gold);">+</div>
+                <div class="story-ring-inner" style="width:38px;height:38px;font-size:20px;font-weight:500;color:var(--mauve);">+</div>
               </div>
-              <span class="story-label">Add Story</span>
+              <span class="story-label">Your story</span>
             </button>
             ${state.storyGroups
               .map(
@@ -339,14 +305,14 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
           <div class="center-split-body">
             <div class="inner-list-pane">
               <div class="inner-section-head">
-                <span>Direct Messages</span>
+                <span>Direct messages</span>
                 <button class="dock-icon-btn" id="open-add-friend" title="Add Friend">${ICONS.plus}</button>
               </div>
               ${
                 state.friends.length === 0 && !searchQuery
                   ? `<div style="padding:10px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.1);font-size:11.5px;color:var(--text-muted);text-align:center;margin-bottom:6px;">
                       No DMs yet.<br/>
-                      <button type="button" id="empty-list-add-fr" style="color:var(--vyro-gold);font-weight:800;margin-top:4px;">+ Add a Friend</button>
+                      <button type="button" id="empty-list-add-fr" style="color:var(--vyro-gold);font-weight:650;margin-top:4px;">+ Add a Friend</button>
                     </div>`
                   : ''
               }
@@ -399,24 +365,24 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
                         ? `<div class="channel-sub-list">
                             ${s.channels
                               .map((ch) => {
-                                const icon = ch.type === 'voice' ? '🔊' : ch.type === 'ephemeral' ? '⚡' : '#';
+                                const icon = ch.type === 'voice' ? ICONS.volume : ch.type === 'ephemeral' ? ICONS.zap : ICONS.hash;
                                 const chActive = ch.id === activeChannel?.id && ch.type !== 'voice';
                                 const vcCount = ch.type === 'voice' ? (state.voiceState[ch.id] || []).length : 0;
                                 return `
                                   <button class="channel-row ${chActive ? 'active' : ''}" data-ch-id="${escapeHtml(ch.id)}" data-ch-type="${escapeHtml(ch.type)}">
-                                    <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${icon} ${escapeHtml(ch.name)}</span>
+                                    <span class="channel-name">${icon}<span>${escapeHtml(ch.name)}</span></span>
                                     ${
                                       ch.type === 'ephemeral'
                                         ? `<span class="channel-ttl-tag">${ch.defaultTtlSec}s</span>`
                                         : ch.type === 'voice' && vcCount > 0
-                                        ? `<span class="channel-ttl-tag" style="background:rgba(34,197,94,0.18);color:#4ADE80;">${vcCount}</span>`
+                                        ? `<span class="channel-ttl-tag" style="color:var(--moss);">${vcCount}</span>`
                                         : ''
                                     }
                                   </button>
                                 `;
                               })
                               .join('')}
-                            <button class="channel-row" id="add-channel-btn" style="color:var(--vyro-gold);">+ Add Channel</button>
+                            <button class="channel-row" id="add-channel-btn" style="color:var(--mauve-dim);">${ICONS.plus} Add channel</button>
                           </div>`
                         : ''
                     }
@@ -439,12 +405,12 @@ export function renderWorkspace(container, { wsClient, loadAllData, loadMessages
       </div>
 
       <nav class="mobile-nav-bar">
-        <button class="mobile-nav-btn ${state.mobileTab === 'chats' ? 'active' : ''}" data-mtab="chats"><span>💬</span><span>Chats</span></button>
-        <button class="mobile-nav-btn ${state.mobileTab === 'servers' ? 'active' : ''}" data-mtab="servers"><span>🌐</span><span>Rooms</span></button>
+        <button class="mobile-nav-btn ${state.mobileTab === 'chats' ? 'active' : ''}" data-mtab="chats"><span class="mnav-icon">${ICONS.message}</span><span>Chats</span></button>
+        <button class="mobile-nav-btn ${state.mobileTab === 'servers' ? 'active' : ''}" data-mtab="servers"><span class="mnav-icon">${ICONS.globe}</span><span>Rooms</span></button>
         <button class="mobile-nav-btn" id="mobile-snap-fab"><div class="mobile-snap-fab">${ICONS.camera}</div></button>
-        <button class="mobile-nav-btn" id="mobile-live-btn"><span>🔴</span><span>Live</span></button>
-        <button class="mobile-nav-btn ${state.mobileTab === 'stories' ? 'active' : ''}" data-mtab="stories"><span>✨</span><span>Stories</span></button>
-        <button class="mobile-nav-btn" id="mobile-profile-btn"><span>👤</span><span>You</span></button>
+        <button class="mobile-nav-btn" id="mobile-live-btn"><span class="mnav-icon">${ICONS.video}</span><span>Live</span></button>
+        <button class="mobile-nav-btn ${state.mobileTab === 'stories' ? 'active' : ''}" data-mtab="stories"><span class="mnav-icon">${ICONS.sparkles}</span><span>Stories</span></button>
+        <button class="mobile-nav-btn" id="mobile-profile-btn"><span class="mnav-icon">${renderAvatarHtml(user, 22)}</span><span>You</span></button>
       </nav>
     </div>
   `;
@@ -479,9 +445,9 @@ function renderSpatialVoiceStageHtml(activeServer, voiceChannel, pool) {
   return `
     <div class="chat-header">
       <div class="chat-header-left">
-        <span class="chat-header-title">🎙️ ${escapeHtml(activeServer?.name || 'VYRO Lounge')} • ${escapeHtml(voiceChannel.name)}</span>
-        <span class="badge-pill" style="background:rgba(34,197,94,0.16);color:#4ADE80;">
-          ● ${displayList.length} in lounge${connected && voiceJoinStartedAt ? ` • <span id="vc-stage-timer">${formatCallDuration(voiceJoinStartedAt)}</span>` : ''}
+        <span class="chat-header-title">${escapeHtml(voiceChannel.name)}</span>
+        <span class="badge-pill">
+          ${displayList.length} here${connected && voiceJoinStartedAt ? ` • <span id="vc-stage-timer">${formatCallDuration(voiceJoinStartedAt)}</span>` : ''}
         </span>
       </div>
       <div class="chat-header-actions">
@@ -525,7 +491,7 @@ function renderSpatialVoiceStageHtml(activeServer, voiceChannel, pool) {
             </div>`
           : `<div class="empty-chat-bento">
               <div class="empty-chat-orb">${ICONS.voiceStage}</div>
-              <div style="font-size:17px;font-weight:900;">Spatial Voice Stage Ready</div>
+              <div style="font-size:17px;font-weight:700;">Spatial Voice Stage Ready</div>
               <div style="font-size:13px;color:var(--text-secondary);">Hop into <strong>${escapeHtml(voiceChannel.name)}</strong> to hang out live with friends, toggle webcam preview with optical blur, and see real-time speaker tiles.</div>
               <div class="empty-starter-row">
                 <button class="btn btn-primary btn-sm" id="stage-join-cta" data-vc-id="${escapeHtml(voiceChannel.id)}">${ICONS.mic} Join Voice Lounge</button>
@@ -555,8 +521,8 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
   if (state.mobileTab === 'stories' && window.innerWidth <= 768) {
     return `
       <div class="chat-header">
-        <div class="chat-header-left"><span class="chat-header-title">✨ 24h Stories</span></div>
-        <button class="btn btn-primary btn-sm" id="add-story-btn-2">+ New Story</button>
+        <div class="chat-header-left"><span class="chat-header-title">Stories</span></div>
+        <button class="btn btn-primary btn-sm" id="add-story-btn-2">New story</button>
       </div>
       <div class="friends-directory">
         ${
@@ -575,10 +541,10 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
                 )
                 .join('')
             : `<div class="empty-chat-bento">
-                <div class="empty-chat-orb">✨</div>
-                <div style="font-weight:800;font-size:16px;">No Stories Yet</div>
-                <div class="field-hint">Share your first 24h Story with text, filters, and stickers!</div>
-                <button class="btn btn-primary btn-sm" id="empty-story-create-btn">+ Create 24h Story</button>
+                <div class="empty-chat-orb">📷</div>
+                <div class="empty-title">No stories yet</div>
+                <div class="empty-sub">Stories disappear after 24 hours. Post one and your friends will see it here.</div>
+                <button class="btn btn-primary btn-sm" id="empty-story-create-btn">Post a story</button>
               </div>`
         }
       </div>
@@ -592,8 +558,8 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
   if (navTab === 'discover') {
     return `
       <div class="chat-header">
-        <div class="chat-header-left"><span class="chat-header-title">🧭 Discover VYRO Communities</span></div>
-        <button class="btn btn-primary btn-sm" id="disc-join-btn">+ Create / Join Server</button>
+        <div class="chat-header-left"><span class="chat-header-title">Communities</span></div>
+        <button class="btn btn-primary btn-sm" id="disc-join-btn">Create or join</button>
       </div>
       <div class="friends-directory">
         ${
@@ -606,13 +572,13 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
                     <div style="display:flex;align-items:center;gap:11px;">
                       <span class="comm-icon-badge" style="background:${escapeHtml(s.iconColor)};width:40px;height:40px;font-size:17px;">${escapeHtml(s.iconEmoji)}</span>
                       <div style="min-width:0;">
-                        <div style="font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(s.name)}</div>
-                        <div class="field-hint">${s.members.length} members • Code: <code style="color:var(--vyro-gold);">${escapeHtml(s.inviteCode)}</code></div>
+                        <div style="font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(s.name)}</div>
+                        <div class="field-hint">${s.members.length} ${s.members.length === 1 ? 'member' : 'members'}, invite code <strong style="color:var(--cream);font-weight:600;">${escapeHtml(s.inviteCode)}</strong></div>
                       </div>
                     </div>
                     <div class="field-hint" style="flex:1;">${escapeHtml(s.description || 'Channels, Flash Snaps & Voice Lounge')}</div>
                     <div style="display:flex;gap:8px;">
-                      <button class="btn btn-primary btn-sm" data-srv-open="${escapeHtml(s.id)}" style="flex:1;">Enter →</button>
+                      <button class="btn btn-secondary btn-sm" data-srv-open="${escapeHtml(s.id)}" style="flex:1;">Open</button>
                       <button class="btn btn-secondary btn-sm" data-copy-invite="${escapeHtml(s.inviteCode)}" title="Copy Invite Code">${ICONS.copy}</button>
                     </div>
                   </div>
@@ -621,10 +587,10 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
                   .join('')}
               </div>`
             : `<div class="empty-chat-bento">
-                <div class="empty-chat-orb">🌐</div>
-                <div style="font-size:17px;font-weight:900;">Start Your First Community</div>
-                <div style="font-size:13px;color:var(--text-secondary);">Create a private server for your squad with text rooms, ⚡ ephemeral Snap channels, and live Voice Stages — or join one using a friend's invite code.</div>
-                <button class="btn btn-primary btn-sm" id="empty-disc-create">+ Create or Join Server</button>
+                <div class="empty-chat-orb">🏠</div>
+                <div class="empty-title">No communities yet</div>
+                <div class="empty-sub">Make one for your group with its own chats and voice, or join a friend's with their invite code.</div>
+                <button class="btn btn-primary btn-sm" id="empty-disc-create">Create or join</button>
               </div>`
         }
       </div>
@@ -634,14 +600,14 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
   if (navTab === 'friends' || !currentScopeId) {
     return `
       <div class="chat-header">
-        <div class="chat-header-left"><span class="chat-header-title">👥 Squad &amp; Snap Streaks</span></div>
-        <button class="btn btn-primary btn-sm" id="hdr-add-friend">${ICONS.userPlus} Add Friend</button>
+        <div class="chat-header-left"><span class="chat-header-title">Friends</span></div>
+        <button class="btn btn-primary btn-sm" id="hdr-add-friend">${ICONS.userPlus} Add friend</button>
       </div>
       <div class="friends-directory">
         ${
           state.incomingRequests.length
             ? `<div class="dir-card" style="border-color:rgba(250,204,21,0.38);">
-                <h4 style="margin-bottom:10px;color:var(--vyro-gold);">Incoming Friend Requests (${state.incomingRequests.length})</h4>
+                <h4 style="margin-bottom:10px;color:var(--marigold);">Friend requests (${state.incomingRequests.length})</h4>
                 ${state.incomingRequests
                   .map(
                     (r) => `
@@ -664,7 +630,7 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
         ${
           state.friends.length
             ? `<div class="dir-card">
-                <h4 style="margin-bottom:12px;">Your Squad (${state.friends.length})</h4>
+                <h4 style="margin-bottom:12px;">Your friends (${state.friends.length})</h4>
                 <div style="display:flex;flex-direction:column;gap:8px;">
                   ${state.friends
                     .map(
@@ -673,11 +639,11 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
                       <div style="display:flex;align-items:center;gap:11px;">
                         ${renderAvatarHtml(f.user, 38, true)}
                         <div>
-                          <div style="font-weight:800;">${renderNameHtml(f.user, { labels: true })} ${f.streakCount > 0 ? `<span class="streak-pill">🔥 ${f.streakCount}</span>` : ''}</div>
+                          <div style="font-weight:650;">${renderNameHtml(f.user, { labels: true })} ${f.streakCount > 0 ? `<span class="streak-pill">🔥 ${f.streakCount}</span>` : ''}</div>
                           <div class="field-hint">${escapeHtml(f.user.statusText || f.user.presence)}</div>
                         </div>
                       </div>
-                      <button class="btn btn-primary btn-sm" data-open-dm="${escapeHtml(f.dmId)}">Message</button>
+                      <button class="btn btn-secondary btn-sm" data-open-dm="${escapeHtml(f.dmId)}">Message</button>
                     </div>
                   `
                     )
@@ -686,7 +652,7 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
               </div>`
             : `<div class="empty-chat-bento">
                 <div class="empty-chat-orb">⚡</div>
-                <div style="font-size:18px;font-weight:900;">Clean Slate — Invite Your Real Squad</div>
+                <div style="font-size:18px;font-weight:700;">Clean Slate — Invite Your Real Squad</div>
                 <div style="font-size:13px;color:var(--text-secondary);">VYRO has zero fake bots. Add friends by username or share your QR code so they can join your server, drop Snaps, and start daily 🔥 streaks.</div>
                 <div class="empty-starter-row">
                   <button class="btn btn-primary btn-sm" id="empty-fr-add">${ICONS.userPlus} Find &amp; Add Friends</button>
@@ -705,9 +671,8 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
   let defaultTtl = 0;
 
   if (currentScopeType === 'channel' && activeChannel) {
-    const icon = activeChannel.type === 'ephemeral' ? '⚡' : '#';
-    headerTitle = `${activeServer?.name || 'Community'} / ${icon} ${activeChannel.name}`;
-    headerSub = activeChannel.topic || 'Community Channel';
+    headerTitle = `${activeChannel.type === 'ephemeral' ? '' : '#'}${activeChannel.name}`;
+    headerSub = activeChannel.topic || activeServer?.name || '';
     defaultTtl = activeChannel.defaultTtlSec || 0;
   } else if (activeFriendEntry) {
     headerAvatar = renderAvatarHtml(activeFriendEntry.user, 36, true);
@@ -747,21 +712,21 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
     <div class="messages-scroll" id="messages-feed">
       ${
         state.messages.length
-          ? state.messages.map((m) => renderMessageRowHtml(m, user.id, isPlus(user))).join('')
+          ? state.messages.map((m, i) => renderMessageRowHtml(m, user.id, isPlus(user), state.messages[i - 1])).join('')
           : `<div class="empty-chat-bento">
-              <div class="empty-chat-orb">⚡</div>
-              <div style="font-size:16px;font-weight:900;">Start the Conversation</div>
-              <div style="font-size:12.5px;color:var(--text-secondary);">Send a message, drop a timed Flash Snap, or record a voice note.</div>
+              <div class="empty-chat-orb">👋</div>
+              <div class="empty-title">Nothing here yet</div>
+              <div class="empty-sub">Say hi, send a snap or record a voice note.</div>
               <div class="empty-starter-row">
-                <button type="button" class="btn btn-secondary btn-sm" data-quick-say="👋 Hey! Welcome to VYRO!">👋 Say Hi</button>
-                <button type="button" class="btn btn-secondary btn-sm" data-quick-say="⚡ Wanna drop a Snap or hop in Voice?">⚡ Ping Squad</button>
-                <button type="button" class="btn btn-primary btn-sm" id="empty-open-snap">${ICONS.camera} Shoot a Snap</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-quick-say="hey 👋">Wave 👋</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-quick-say="you about? 👀">You about?</button>
+                <button type="button" class="btn btn-primary btn-sm" id="empty-open-snap">${ICONS.camera} Send a snap</button>
               </div>
             </div>`
       }
     </div>
 
-    <div class="typing-bar">${typingNames.length ? `✍️ ${escapeHtml(typingNames.join(', '))} is typing...` : ''}</div>
+    <div class="typing-bar">${typingNames.length ? `${escapeHtml(typingNames.join(', '))} ${typingNames.length > 1 ? 'are' : 'is'} typing…` : ''}</div>
 
     <div class="composer-wrap">
       ${
@@ -811,13 +776,24 @@ function renderInnerChatHtml(navTab, activeServer, activeChannel, activeFriendEn
   `;
 }
 
-function renderMessageRowHtml(m, viewerId, viewerIsPlus = false) {
+function renderMessageRowHtml(m, viewerId, viewerIsPlus = false, prev = null) {
   if (m.kind === 'system') {
     return `<div class="msg-row system-row">${escapeHtml(m.content)} • ${formatTime(m.createdAt)}</div>`;
   }
   const author = m.author || { displayName: 'Unknown', username: 'unknown', discriminator: '0000' };
   const isMine = m.authorId === viewerId;
   const rowClasses = ['msg-row'];
+  if (isMine) rowClasses.push('mine');
+  // Messages from the same person close together are grouped, like a real chat
+  if (
+    prev &&
+    prev.kind !== 'system' &&
+    prev.authorId === m.authorId &&
+    Number(m.createdAt) - Number(prev.createdAt) < 5 * 60 * 1000 &&
+    !m.replyTo
+  ) {
+    rowClasses.push('grouped');
+  }
   if (m.isSaved) rowClasses.push('saved-snap');
   else if (m.isEphemeral || m.expiresAt > 0) rowClasses.push('ephemeral-msg');
 
@@ -836,7 +812,7 @@ function renderMessageRowHtml(m, viewerId, viewerIsPlus = false) {
       </div>
     `;
   } else if (m.kind === 'voice') {
-    bodyHtml = `<div class="voice-note-card"><span>🎙️ Voice</span><audio controls src="${escapeHtml(m.mediaData)}"></audio></div>`;
+    bodyHtml = `<div class="voice-note-card"><span class="field-hint">Voice note</span><audio controls src="${escapeHtml(m.mediaData)}"></audio></div>`;
   } else if (m.kind === 'sticker') {
     bodyHtml = stickerHtml(m.content) || `<div class="msg-bubble">${escapeHtml(m.content)}</div>`;
   } else {
@@ -861,23 +837,23 @@ function renderMessageRowHtml(m, viewerId, viewerIsPlus = false) {
 
   return `
     <div class="${rowClasses.join(' ')}" data-msg-id="${escapeHtml(m.id)}">
-      <div>${renderAvatarHtml(author, 36)}</div>
-      <div style="min-width:0;">
+      <div class="msg-avatar">${renderAvatarHtml(author, 34)}</div>
+      <div class="msg-body">
         <div class="msg-header">
           ${
             isPlus(author)
               ? `<span class="msg-author">${renderNameHtml(author, { labels: true })}</span>`
-              : `<span class="msg-author" style="color:${isMine ? '#D8B4FE' : '#fff'};">${escapeHtml(author.displayName)}</span>`
+              : `<span class="msg-author">${escapeHtml(author.displayName)}</span>`
           }
           ${author.isBot ? `<span class="msg-bot-tag">BOT</span>` : ''}
           <span class="msg-time">${formatTime(m.createdAt)}</span>
           ${m.isSaved ? `<span class="msg-saved-pill">Saved</span>` : ''}
-          ${m.isPinned ? `<span class="msg-saved-pill">📌 Pinned</span>` : ''}
-          ${m.expiresAt > 0 && !m.isSaved ? `<span class="msg-ttl-pill">⏱ Disappears</span>` : ''}
+          ${m.isPinned ? `<span class="msg-saved-pill">Pinned</span>` : ''}
+          ${m.expiresAt > 0 && !m.isSaved ? `<span class="msg-ttl-pill">Disappears</span>` : ''}
         </div>
         ${
           m.replyTo
-            ? `<div class="msg-reply-ref">↩ <strong>${escapeHtml(m.replyTo.authorName)}</strong>: ${escapeHtml((m.replyTo.content || 'Snap').slice(0, 60))}</div>`
+            ? `<div class="msg-reply-ref"><strong>${escapeHtml(m.replyTo.authorName)}</strong> ${escapeHtml((m.replyTo.content || 'Snap').slice(0, 60))}</div>`
             : ''
         }
         ${bodyHtml}
@@ -904,8 +880,8 @@ function renderRightWidgetsHtml(activeServer, track, pool, voiceChannel) {
   return `
     <div class="online-now-card">
       <div class="widget-head">
-        <span><span style="color:var(--status-online);">●</span> Online Now</span>
-        <span class="badge-pill" style="background:rgba(255,255,255,0.06);color:var(--text-secondary);">${onlineUsers.length}</span>
+        <span>Online now</span>
+        <span class="badge-pill">${onlineUsers.length}</span>
       </div>
       <div class="online-list-scroll">
         ${onlineUsers
@@ -914,10 +890,10 @@ function renderRightWidgetsHtml(activeServer, track, pool, voiceChannel) {
           <button class="member-item" data-inspect-user="${escapeHtml(u.id)}">
             ${renderAvatarHtml(u, 32, true)}
             <div style="flex:1;min-width:0;">
-              <div class="member-name" style="color:${u.role === 'owner' ? '#D8B4FE' : 'var(--text-primary)'};">${renderNameHtml(u, { badgeSize: 13 })}</div>
+              <div class="member-name">${renderNameHtml(u, { badgeSize: 13 })}</div>
               <div class="member-sub">${escapeHtml(u.statusText || u.presence)}</div>
             </div>
-            ${u.role === 'owner' ? '<span title="Owner">👑</span>' : ''}
+            ${u.role === 'owner' ? '<span class="owner-tag" title="Owner of this community">owner</span>' : ''}
           </button>
         `
           )
@@ -927,11 +903,11 @@ function renderRightWidgetsHtml(activeServer, track, pool, voiceChannel) {
 
     <div class="voice-widget-card">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-        <div style="font-weight:800;font-size:13.5px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-          <span style="color:var(--status-online);">●</span> ${escapeHtml(voiceChannel.name)}
+        <div class="widget-head" style="margin:0;padding:0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+          ${escapeHtml(voiceChannel.name)}
         </div>
         <div style="display:flex;align-items:center;gap:6px;">
-          <span style="font-size:11px;color:var(--text-muted);">${inThisVc.length} online</span>
+          <span style="font-size:12px;color:var(--text-muted);">${inThisVc.length ? `${inThisVc.length} in voice` : 'empty'}</span>
           <button class="dock-icon-btn" id="open-voice-stage-btn" title="Expand Voice Stage">${ICONS.maximize}</button>
         </div>
       </div>
@@ -941,7 +917,7 @@ function renderRightWidgetsHtml(activeServer, track, pool, voiceChannel) {
             ? inThisVc
                 .map((p) => renderAvatarHtml(pool.get(p.userId) || { displayName: 'User' }, 30, true))
                 .join('')
-            : `<span class="field-hint">Hop in to talk live with your squad</span>`
+            : `<span class="field-hint">No one's talking right now.</span>`
         }
       </div>
       ${
@@ -963,7 +939,7 @@ function renderRightWidgetsHtml(activeServer, track, pool, voiceChannel) {
         ${musicPlaying ? '<div class="eq-bars"><span></span><span></span><span></span></div>' : ICONS.music}
       </div>
       <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(track.title)}</div>
+        <div style="font-size:13px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(track.title)}</div>
         <div style="font-size:11px;color:var(--text-muted);">${escapeHtml(track.artist)} • ${musicPlaying ? 'Playing' : 'Paused'}</div>
       </div>
       <button class="tb-icon-btn" id="music-toggle-btn" title="Play / Pause Ambient Audio" style="width:32px;height:32px;">

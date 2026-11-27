@@ -41,12 +41,12 @@ export function openCreateJoinServerModal(onRefresh) {
   openModal(
     `
     <div class="modal-head">
-      <h3>Create or Join a VYRO Server</h3>
+      <h3>Create or join a community</h3>
       <button class="btn-ghost btn-sm" id="m-close">✕</button>
     </div>
     <div class="auth-tabs" style="margin-bottom:4px;">
-      <button class="auth-tab active" data-tab="create">Create Server</button>
-      <button class="auth-tab" data-tab="join">Join via Invite</button>
+      <button class="auth-tab active" data-tab="create">Create</button>
+      <button class="auth-tab" data-tab="join">Join with a code</button>
     </div>
     <div id="srv-modal-body"></div>
     `,
@@ -59,16 +59,16 @@ export function openCreateJoinServerModal(onRefresh) {
           <form id="create-srv-form" class="form-grid">
             <div class="form-row-2">
               <div class="field">
-                <label>Server Name</label>
+                <label>Name</label>
                 <input class="input-control" id="srv-name" placeholder="e.g. Midnight Squad" required maxlength="40" />
               </div>
               <div class="field">
-                <label>Icon Emoji</label>
+                <label>Icon</label>
                 <input class="input-control" id="srv-emoji" value="⚡" maxlength="6" />
               </div>
             </div>
             <div class="field">
-              <label>Theme Gradient</label>
+              <label>Colour</label>
               <div class="swatch-row">
                 ${AVATAR_GRADIENTS.map((g, idx) => `<button type="button" class="swatch-btn ${idx === 0 ? 'active' : ''}" data-grad="${escapeHtml(g)}" style="background:${g};width:32px;height:32px;"></button>`).join('')}
               </div>
@@ -77,7 +77,7 @@ export function openCreateJoinServerModal(onRefresh) {
               <label>Description</label>
               <input class="input-control" id="srv-desc" placeholder="Channels, flash snaps & voice hangouts" maxlength="160" />
             </div>
-            <button type="submit" class="btn btn-primary">Create Server ⚡</button>
+            <button type="submit" class="btn btn-primary">Create community</button>
           </form>
         `;
         let chosenGrad = AVATAR_GRADIENTS[0];
@@ -118,11 +118,11 @@ export function openCreateJoinServerModal(onRefresh) {
         body.innerHTML = `
           <form id="join-srv-form" class="form-grid">
             <div class="field">
-              <label>Invite Code</label>
+              <label>Invite code</label>
               <input class="input-control" id="join-code" placeholder="Enter server invite code" style="text-transform:uppercase;font-family:var(--font-mono);" required />
             </div>
             <p class="field-hint">Ask your friend or community owner for their 6-character invite code.</p>
-            <button type="submit" class="btn btn-primary">Join Server 🚀</button>
+            <button type="submit" class="btn btn-primary">Join</button>
           </form>
         `;
         body.querySelector('#join-srv-form').onsubmit = async (e) => {
@@ -164,20 +164,20 @@ export function openCreateChannelModal(serverId, onRefresh) {
   openModal(
     `
     <div class="modal-head">
-      <h3>Create Channel</h3>
+      <h3>New channel</h3>
       <button class="btn-ghost btn-sm" id="m-close">✕</button>
     </div>
     <form id="ch-form" class="form-grid">
       <div class="field">
-        <label>Channel Type</label>
+        <label>Type</label>
         <div class="chip-row">
           <button type="button" class="chip-option active" data-type="text"># Text Channel</button>
-          <button type="button" class="chip-option" data-type="ephemeral">⚡ Ephemeral Snap Room</button>
+          <button type="button" class="chip-option" data-type="ephemeral">Disappearing chat</button>
           <button type="button" class="chip-option" data-type="voice">🔊 Voice Lounge</button>
         </div>
       </div>
       <div class="field">
-        <label>Channel Name</label>
+        <label>Name</label>
         <input class="input-control" id="ch-name" placeholder="e.g. midnight-snaps" required maxlength="32" />
       </div>
       <div class="field hidden" id="ch-ttl-wrap">
@@ -231,15 +231,15 @@ export function openAddFriendModal(onRefresh) {
   openModal(
     `
     <div class="modal-head">
-      <h3>Add Friends &amp; Start Streaks 🔥</h3>
+      <h3>Add friends</h3>
       <button class="btn-ghost btn-sm" id="m-close">✕</button>
     </div>
     <form id="fr-add-form" style="display:flex;gap:8px;">
       <input class="input-control" id="fr-target" placeholder="Username or Name#0000" required />
-      <button type="submit" class="btn btn-primary">Send Request</button>
+      <button type="submit" class="btn btn-primary">Send friend request</button>
     </form>
     <div class="field">
-      <label>Discover People on VYRO</label>
+      <label>People you might know</label>
       <input class="input-control" id="fr-search" placeholder="Search users..." />
     </div>
     <div id="fr-search-results" style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto;"></div>
@@ -310,7 +310,7 @@ export async function openMobileQrModal() {
   openModal(
     `
     <div class="modal-head">
-      <h3>📱 Connect Mobile &amp; Share VYRO</h3>
+      <h3>Open VYRO on your phone</h3>
       <button class="btn-ghost btn-sm" id="m-close">✕</button>
     </div>
     <div id="qr-modal-body" style="display:flex;flex-direction:column;gap:14px;">
@@ -352,13 +352,13 @@ export function openUserProfileModal(user, onOpenDm) {
   openModal(
     `
     <div class="modal-head">
-      <h3>VYRO Profile</h3>
+      <h3>Profile</h3>
       <button class="btn-ghost btn-sm" id="m-close">✕</button>
     </div>
     <div class="${profileThemeClass(user)}" style="display:flex;align-items:center;gap:14px;border-radius:16px;${profileThemeClass(user) ? 'padding:14px;' : ''}">
       ${renderAvatarHtml(user, 68, true)}
       <div>
-        <div style="font-size:20px;font-weight:900;">${renderNameHtml(user, { labels: true, badgeSize: 18 })}</div>
+        <div style="font-family:var(--font-display);font-size:22px;font-weight:700;">${renderNameHtml(user, { labels: true, badgeSize: 18 })}</div>
         <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--text-muted);">@${escapeHtml(user.username)}#${escapeHtml(user.discriminator)}</div>
         <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;">
           <span class="badge-pill" style="background:rgba(250,204,21,0.16);color:var(--vyro-gold);">👻 Score ${user.snapScore || 0}</span>
@@ -402,14 +402,14 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
   openModal(
     `
     <div class="modal-head">
-      <h3>${initialTab === 'updates' ? 'VYRO Updates' : initialTab === 'plus' ? 'VYRO+' : 'Settings &amp; Profile'}</h3>
+      <h3>${initialTab === 'updates' ? 'Updates' : initialTab === 'plus' ? 'VYRO+' : 'Settings'}</h3>
       <button class="btn-ghost btn-sm" id="m-close">✕</button>
     </div>
     <div class="auth-tabs" style="margin-bottom:4px;grid-template-columns:repeat(${u.isAdmin ? 4 : 3},1fr);">
-      <button class="auth-tab ${initialTab === 'profile' ? 'active' : ''}" data-stab="profile">Profile &amp; Avatar</button>
-      <button class="auth-tab ${initialTab === 'plus' ? 'active' : ''}" data-stab="plus">👑 VYRO+</button>
+      <button class="auth-tab ${initialTab === 'profile' ? 'active' : ''}" data-stab="profile">Profile</button>
+      <button class="auth-tab ${initialTab === 'plus' ? 'active' : ''}" data-stab="plus">VYRO+</button>
       <button class="auth-tab ${initialTab === 'updates' ? 'active' : ''}" data-stab="updates">Updates</button>
-      ${u.isAdmin ? `<button class="auth-tab" data-stab="mod">🛡️ Mod</button>` : ''}
+      ${u.isAdmin ? `<button class="auth-tab" data-stab="mod">Moderation</button>` : ''}
     </div>
     <div id="settings-body"></div>
     `,
@@ -422,7 +422,7 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
           <form id="prof-save-form" class="form-grid">
             <div class="form-row-2">
               <div class="field">
-                <label>Display Name</label>
+                <label>Display name</label>
                 <input class="input-control" id="st-display" value="${escapeHtml(u.displayName)}" maxlength="32" />
               </div>
               <div class="field">
@@ -436,7 +436,7 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
               </div>
             </div>
             <div class="field">
-              <label>Custom Status</label>
+              <label>Status</label>
               <input class="input-control" id="st-status" value="${escapeHtml(u.statusText)}" maxlength="80" />
             </div>
             <div class="field">
@@ -475,8 +475,8 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
               </div>
             </div>
             <div style="display:flex;gap:10px;justify-content:space-between;">
-              <button type="button" class="btn btn-danger" id="st-logout">Log Out</button>
-              <button type="submit" class="btn btn-primary" style="flex:1;">Save Profile</button>
+              <button type="button" class="btn btn-danger" id="st-logout">Log out</button>
+              <button type="submit" class="btn btn-primary" style="flex:1;">Save changes</button>
             </div>
           </form>
         `;
@@ -565,8 +565,8 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
       const renderUpdates = async () => {
         body.innerHTML = `<div class="field-hint">Checking for the latest VYRO release...</div>`;
         const upd = await api('/api/updates/check').catch(() => ({
-          currentVersion: '1.1.0',
-          latestVersion: '1.1.0',
+          currentVersion: '1.2.0',
+          latestVersion: '1.2.0',
           updateAvailable: false,
           githubOwner: 'moongames0101-cmyk',
           githubRepo: 'vyro',
@@ -587,15 +587,15 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
               <div style="display:flex;align-items:center;gap:12px;">
                 <img src="/assets/icon-192.png" width="46" height="46" style="border-radius:12px;box-shadow:var(--shadow-glow);" />
                 <div style="flex:1;">
-                  <div style="font-size:16px;font-weight:900;">VYRO v${escapeHtml(upd.currentVersion)}</div>
+                  <div style="font-family:var(--font-display);font-size:17px;font-weight:700;">VYRO ${escapeHtml(upd.currentVersion)}</div>
                   <div class="field-hint">
                     ${
                       isReady
-                        ? `✨ v${escapeHtml(dState.version || upd.latestVersion)} downloaded and ready to install!`
+                        ? `Version ${escapeHtml(dState.version || upd.latestVersion)} is downloaded. Restart to finish updating.`
                         : isDownloading
                         ? `⬇️ Downloading update... ${dState.percent || 0}%`
                         : upd.updateAvailable
-                        ? `✨ New version v${escapeHtml(upd.latestVersion)} is available!`
+                        ? `Version ${escapeHtml(upd.latestVersion)} is available.`
                         : '✓ You are on the latest version of VYRO.'
                     }
                   </div>
@@ -614,7 +614,7 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
                 ${
                   isReady && window.vyroDesktop
-                    ? `<button type="button" class="btn btn-primary" id="upd-install-now" style="flex:1;">🚀 Restart &amp; Install Update</button>`
+                    ? `<button type="button" class="btn btn-primary" id="upd-install-now" style="flex:1;">Restart and update</button>`
                     : window.vyroDesktop
                     ? `<button type="button" class="btn btn-primary" id="upd-one-click" style="flex:1;">${upd.updateAvailable ? `⬇️ Download &amp; Install v${escapeHtml(upd.latestVersion)}` : '🔄 Check for Updates'}</button>`
                     : setupAsset
@@ -644,7 +644,7 @@ export function openSettingsAndUpdatesModal(onRefresh, onLogout, initialTab = 'p
               <summary style="cursor:pointer;font-size:12.5px;font-weight:700;color:var(--text-secondary);">Advanced Connection Settings</summary>
               <div class="form-grid" style="margin-top:12px;">
                 <div class="field">
-                  <label>Custom Server URL (Optional)</label>
+                  <label>Server address (optional)</label>
                   <div style="display:flex;gap:8px;">
                     <input class="input-control" id="srv-url-input" value="${escapeHtml(getServerUrl())}" placeholder="${escapeHtml(isApkMode() ? '192.168.0.x:3847 or https://...' : `${location.origin} (local)`)}" />
                     <button type="button" class="btn btn-secondary btn-sm" id="srv-url-save">Apply</button>

@@ -66,16 +66,16 @@ export async function renderPlusPanel(body) {
     if (st.active) return '';
     if (inApk) {
       if (st.billing.google && nativeBilling) {
-        return `<button class="btn btn-primary plus-cta" id="plus-buy-google">Subscribe with Google Play • ${PLUS_PRICE}</button>`;
+        return `<button class="btn btn-primary plus-cta" id="plus-buy-google">Subscribe with Google Play, ${PLUS_PRICE}</button>`;
       }
       if (st.billing.card && st.billing.cardInApk) {
-        return `<button class="btn btn-primary plus-cta" id="plus-buy-card">Subscribe • ${PLUS_PRICE}</button>`;
+        return `<button class="btn btn-primary plus-cta" id="plus-buy-card">Subscribe for ${PLUS_PRICE}</button>`;
       }
       return `<button class="btn btn-primary plus-cta" disabled>Coming soon to the app</button>
         <div class="field-hint">VYRO+ opens in the app once it's on the Galaxy Store and Google Play.</div>`;
     }
     if (st.billing.card) {
-      return `<button class="btn btn-primary plus-cta" id="plus-buy-card">Subscribe • ${PLUS_PRICE}</button>
+      return `<button class="btn btn-primary plus-cta" id="plus-buy-card">Subscribe for ${PLUS_PRICE}</button>
         <div class="field-hint">Secure checkout by Stripe. VYRO never sees your card details.</div>`;
     }
     return `<button class="btn btn-primary plus-cta" disabled>Coming soon</button>
@@ -83,10 +83,10 @@ export async function renderPlusPanel(body) {
   };
 
   const statusHtml = () => {
-    if (!st.active) return `<div class="plus-status">${PLUS_PRICE} • Cancel any time • No ads, ever</div>`;
+    if (!st.active) return `<div class="plus-status">${PLUS_PRICE}. Cancel any time.</div>`;
     if (st.source === 'gift') return `<div class="plus-status on">Gifted VYRO+ until ${fmtDate(st.plusUntil)}</div>`;
-    if (st.cancelAtPeriodEnd || !st.renews) return `<div class="plus-status on">Active until ${fmtDate(st.plusUntil)} • won't renew</div>`;
-    return `<div class="plus-status on">Active • renews ${fmtDate(st.plusUntil)}</div>`;
+    if (st.cancelAtPeriodEnd || !st.renews) return `<div class="plus-status on">Active until ${fmtDate(st.plusUntil)}. It won't renew.</div>`;
+    return `<div class="plus-status on">Active. Renews on ${fmtDate(st.plusUntil)}.</div>`;
   };
 
   const manageHtml = () => {
@@ -135,7 +135,7 @@ export async function renderPlusPanel(body) {
         </div>
       </div>
       <div class="plus-perks">
-        ${PERKS.map(([icon, title, text]) => `<div class="plus-perk"><span class="plus-perk-icon">${icon}</span><div><strong>${title}</strong><span>${text}</span></div></div>`).join('')}
+        ${PERKS.map(([, title, text]) => `<div class="plus-perk"><div><strong>${title}</strong><span>${text}</span></div></div>`).join('')}
       </div>
       ${subscribeHtml()}
       ${manageHtml()}
