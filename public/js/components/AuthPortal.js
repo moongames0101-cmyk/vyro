@@ -26,6 +26,7 @@ import {
 } from '../icons.js';
 import { escapeHtml, setState, state, toast } from '../state.js';
 import { renderQrSvg } from '../utils/qr.js';
+import { crownBadgeHtml } from '../plus.js';
 
 let networkInfoCache = null;
 
@@ -48,7 +49,7 @@ const signupDraft = {
   discriminator: String(Math.floor(1000 + Math.random() * 9000)),
   birthday: '',
   bio: '',
-  statusText: 'Vibing on VYRO ⚡',
+  statusText: '',
   recoveryHint: '',
   avatarType: 'svg',
   avatarUrl: '',
@@ -229,19 +230,15 @@ export async function mountAuthPortal(container, onSignedIn) {
 
   container.innerHTML = `
     <div class="auth-page">
-      <div class="auth-aurora-bg"></div>
       <header class="auth-topbar">
         <div class="auth-brand" id="auth-logo-home">
           <img src="/assets/icon-192.png" alt="VYRO" />
-          <div>
-            <div class="auth-brand-title">VYRO</div>
-            <div class="auth-brand-sub">Where Servers Meet Streaks</div>
-          </div>
+          <div class="auth-brand-title">VYRO</div>
         </div>
         <div class="auth-nav-actions">
-          <button class="btn btn-ghost btn-sm" id="nav-login-btn">Log In</button>
-          <button class="btn btn-secondary btn-sm" id="nav-signup-btn">Sign Up</button>
-          <button class="btn btn-primary btn-sm" id="nav-download-btn">${ICONS.download} Get .exe &amp; .apk</button>
+          <button class="btn btn-ghost btn-sm" id="nav-login-btn">Log in</button>
+          <button class="btn btn-ghost btn-sm" id="nav-signup-btn">Sign up</button>
+          <button class="btn btn-secondary btn-sm" id="nav-download-btn">${ICONS.download} Download</button>
           ${
             window.vyroDesktop
               ? `<div class="tb-win-group">
@@ -256,66 +253,38 @@ export async function mountAuthPortal(container, onSignedIn) {
 
       <main class="auth-shell">
         <section class="auth-showcase">
-          <div class="auth-eyebrow">🚫 No ads, ever • Free to use • VYRO+ just £1.99/month</div>
-          <h1 class="auth-headline">
-            Your Squads, <span class="grad">Snaps &amp; Spatial Voice</span> in One Place.
-          </h1>
+          <h1 class="auth-headline">Where your group chat actually lives.</h1>
           <p class="auth-lead">
-            Launch real communities with persistent channels and Spatial Voice Stages, drop timed Flash Snaps with canvas art, grow daily 🔥 streaks, and post 24h Stories across Windows &amp; Android. No ads. No selling your data.
+            Message your friends, send snaps that disappear, hang out in voice and go live.
+            Free to use, with no ads.
           </p>
 
-          <div class="showcase-preview">
-            <div class="preview-stories-row">
-              <div class="preview-story-pill">
-                <div class="preview-story-ring">🔴</div>
-                <span>VYRO Live (18+)</span>
-              </div>
-              <div class="preview-story-pill">
-                <div class="preview-story-ring">📸</div>
-                <span>Timed Flash Snaps</span>
-              </div>
-              <div class="preview-story-pill">
-                <div class="preview-story-ring">🎙️</div>
-                <span>Spatial Voice Stage</span>
-              </div>
-              <div class="preview-story-pill">
-                <div class="preview-story-ring">🔥</div>
-                <span>Squad Streaks</span>
+          <div class="moments" aria-hidden="true">
+            <div class="moment m-chat">
+              <div class="m-avatar" style="background:#E58FB4;">L</div>
+              <div>
+                <div class="m-name">Lexi</div>
+                <div class="m-bubble">who's on tonight?</div>
               </div>
             </div>
-            <div class="preview-cards-grid">
-              <div class="preview-mini-card">
-                <h4># Real-Time Communities</h4>
-                <p>Text channels, ⚡ ephemeral rooms, and spatial 🔊 Voice Stages with crystal status.</p>
-              </div>
-              <div class="preview-mini-card">
-                <h4>📸 Timed Snaps &amp; Stories</h4>
-                <p>Draw or shoot live camera Snaps, set 3s–10s timers, Replay once, or Save in Chat.</p>
-              </div>
-              <div class="preview-mini-card plus-mini">
-                <h4>👑 VYRO+ • £1.99/month</h4>
-                <p>Crown badge, name effects, premium themes, borders, stickers and reactions. Cancel any time.</p>
-              </div>
-              <div class="preview-mini-card">
-                <h4>🛡️ Safer by design</h4>
-                <p>Only friends can message you. Going live is 18+ only, and under-18s found live are banned from it for good.</p>
-              </div>
-            </div>
+            <div class="moment m-mine"><div class="m-bubble mine">give me 10 mins, finishing my edit</div></div>
+            <div class="moment m-streak"><span class="m-streak-num">47</span><span>day streak with Jay 🔥</span></div>
+            <div class="moment m-snap"><span class="m-snap-square"></span><div><strong>Jay sent a snap</strong><span>tap to view</span></div></div>
+            <div class="moment m-live"><span class="live-pill">LIVE</span><div><strong>Kai is live</strong><span>lofi and chill, 23 watching</span></div></div>
+            <div class="moment m-plus"><span class="m-plus-name">Moon</span>${crownBadgeHtml(16)}<span class="plus-label">OG</span></div>
           </div>
 
-          <div class="platform-badges">
-            <span class="platform-chip">🪟 Windows .exe App</span>
-            <span class="platform-chip">🤖 Universal Android .apk (5.0–16+)</span>
-            <span class="platform-chip">📱 Mobile PWA &amp; QR Sync</span>
-            <span class="platform-chip">🚫 No Ads, Ever</span>
-          </div>
+          <p class="auth-footnote">
+            On Windows, Android and the web. VYRO+ is £1.99 a month if you want extra looks.
+            Going live is for 18s and over.
+          </p>
         </section>
 
         <section class="auth-card">
           <div id="apk-connect-slot">${renderApkConnectHtml()}</div>
           <div class="auth-tabs">
-            <button class="auth-tab ${tab === 'login' ? 'active' : ''}" data-auth-tab="login">Log In</button>
-            <button class="auth-tab ${tab === 'signup' ? 'active' : ''}" data-auth-tab="signup">Create Account</button>
+            <button class="auth-tab ${tab === 'login' ? 'active' : ''}" data-auth-tab="login">Log in</button>
+            <button class="auth-tab ${tab === 'signup' ? 'active' : ''}" data-auth-tab="signup">Create account</button>
           </div>
           <div id="auth-form-area"></div>
 
@@ -323,8 +292,8 @@ export async function mountAuthPortal(container, onSignedIn) {
             !isApkMode()
               ? `<div class="server-node-footer">
                   <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--text-muted);gap:8px;flex-wrap:wrap;">
-                    <span>🌐 Server: <strong style="color:var(--text-secondary);">${escapeHtml(getServerUrl() || location.origin)}</strong></span>
-                    <button type="button" class="btn-ghost btn-sm" id="toggle-server-node">Switch Server</button>
+                    <span>Server: <strong style="color:var(--text-secondary);font-weight:500;">${escapeHtml(getServerUrl() || location.origin)}</strong></span>
+                    <button type="button" class="btn-ghost btn-sm" id="toggle-server-node">Change</button>
                   </div>
                   <div id="server-node-editor" class="hidden" style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;">
                     <input class="input-control" id="custom-server-input" placeholder="192.168.0.x:3847 or https://... (blank = local)" value="${escapeHtml(getServerUrl())}" style="flex:1;min-width:160px;padding:8px 10px;font-size:12.5px;" />
@@ -491,18 +460,18 @@ function renderSavedAccountsSection() {
 
 function renderLoginArea(area, root, onSignedIn) {
   area.innerHTML = `
-    <div class="auth-card-title">Welcome back to VYRO</div>
-    <div class="auth-card-sub">Log in with your email, username, or Discord-style #tag.</div>
+    <div class="auth-card-title">Welcome back</div>
+    <div class="auth-card-sub">Log in with your username or email.</div>
     <div id="login-error" class="auth-error-banner hidden"></div>
     <form id="login-form" class="form-grid">
       <div class="field">
-        <label>Email or Username#Tag</label>
-        <input class="input-control" id="login-id" placeholder="your_username or you@example.com" autocomplete="username" required />
+        <label>Username or email</label>
+        <input class="input-control" id="login-id" placeholder="e.g. moon or you@example.com" autocomplete="username" required />
       </div>
       <div class="field">
         <label>
           <span>Password</span>
-          <button type="button" id="goto-reset-btn" style="font-size:12px;color:var(--vyro-gold);font-weight:700;">Forgot password?</button>
+          <button type="button" id="goto-reset-btn" class="text-link">Forgot password?</button>
         </label>
         <div class="input-wrap">
           <input class="input-control input-with-btn" id="login-pw" type="password" placeholder="••••••••" autocomplete="current-password" required />
@@ -510,9 +479,9 @@ function renderLoginArea(area, root, onSignedIn) {
         </div>
       </div>
       <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary);cursor:pointer;">
-        <input type="checkbox" id="login-remember" checked /> Keep me logged in on this device
+        <input type="checkbox" id="login-remember" checked /> Keep me logged in
       </label>
-      <button type="submit" class="btn btn-primary" id="login-submit-btn">Log In to VYRO ⚡</button>
+      <button type="submit" class="btn btn-primary" id="login-submit-btn">Log in</button>
     </form>
 
     ${renderSavedAccountsSection()}
@@ -580,7 +549,7 @@ function renderLoginArea(area, root, onSignedIn) {
       return;
     }
     btn.disabled = true;
-    btn.textContent = 'Signing in...';
+    btn.textContent = 'Logging in…';
     try {
       const res = await api('/api/auth/login', {
         method: 'POST',
@@ -604,27 +573,27 @@ function renderLoginArea(area, root, onSignedIn) {
         onSignedIn
       );
       btn.disabled = false;
-      btn.textContent = 'Log In to VYRO ⚡';
+      btn.textContent = 'Log in';
     }
   };
 }
 
 function renderResetArea(area, root, onSignedIn) {
   area.innerHTML = `
-    <div class="auth-card-title">Reset Password</div>
-    <div class="auth-card-sub">Recover access using your username/email and recovery phrase.</div>
+    <div class="auth-card-title">Reset your password</div>
+    <div class="auth-card-sub">You'll need the recovery phrase you chose when you signed up.</div>
     <div id="reset-msg" class="auth-error-banner hidden"></div>
     <form id="reset-form" class="form-grid">
       <div class="field">
-        <label>Username or Email</label>
+        <label>Username or email</label>
         <input class="input-control" id="reset-id" required placeholder="yourname or you@example.com" />
       </div>
       <div class="field">
-        <label>Recovery Phrase (the one you set at sign up)</label>
+        <label>Recovery phrase</label>
         <input class="input-control" id="reset-hint" required placeholder="Your recovery phrase" />
       </div>
       <div class="field">
-        <label>New Password</label>
+        <label>New password</label>
         <input class="input-control" id="reset-pw" type="password" minlength="6" required placeholder="6+ characters" />
       </div>
       <div style="display:flex;gap:10px;">
@@ -682,13 +651,13 @@ function renderSignupArea(area, root, onSignedIn) {
   const strengthLabels = ['Too short', 'Weak', 'Fair', 'Strong', 'Cyber-proof'];
 
   area.innerHTML = `
-    <div class="auth-card-title">Join VYRO</div>
-    <div class="auth-card-sub">Create your Discord + Snapchat hybrid identity in 3 quick steps.</div>
+    <div class="auth-card-title">Create your account</div>
+    <div class="auth-card-sub">Three quick steps and you're in.</div>
 
     <div class="signup-steps">
-      <div class="signup-step-pill ${s === 1 ? 'active' : s > 1 ? 'done' : ''}">1. Account</div>
-      <div class="signup-step-pill ${s === 2 ? 'active' : s > 2 ? 'done' : ''}">2. Identity</div>
-      <div class="signup-step-pill ${s === 3 ? 'active' : ''}">3. Avatar</div>
+      <div class="signup-step-pill ${s === 1 ? 'active' : s > 1 ? 'done' : ''}">Account</div>
+      <div class="signup-step-pill ${s === 2 ? 'active' : s > 2 ? 'done' : ''}">About you</div>
+      <div class="signup-step-pill ${s === 3 ? 'active' : ''}">Avatar</div>
     </div>
 
     <div id="signup-error" class="auth-error-banner hidden"></div>
@@ -706,7 +675,7 @@ function renderSignupArea(area, root, onSignedIn) {
     stepBody.innerHTML = `
       <div class="form-grid">
         <div class="field">
-          <label>Email Address</label>
+          <label>Email</label>
           <input class="input-control" id="su-email" type="email" value="${escapeHtml(signupDraft.email)}" placeholder="you@domain.com" required />
         </div>
         <div class="field">
@@ -730,10 +699,10 @@ function renderSignupArea(area, root, onSignedIn) {
           </div>
         </div>
         <div class="field">
-          <label>Confirm Password</label>
+          <label>Confirm password</label>
           <input class="input-control" id="su-pw2" type="password" value="${escapeHtml(signupDraft.confirmPassword)}" placeholder="Repeat password" />
         </div>
-        <button type="button" class="btn btn-primary" id="su-next-1">Continue to Identity →</button>
+        <button type="button" class="btn btn-primary" id="su-next-1">Next</button>
       </div>
     `;
 
@@ -838,7 +807,7 @@ function renderSignupArea(area, root, onSignedIn) {
       <div class="form-grid">
         <div class="form-row-2">
           <div class="field">
-            <label>Display Name</label>
+            <label>Display name</label>
             <input class="input-control" id="su-display" value="${escapeHtml(signupDraft.displayName)}" placeholder="How friends see you" maxlength="32" />
           </div>
           <div class="field">
@@ -851,27 +820,27 @@ function renderSignupArea(area, root, onSignedIn) {
         </div>
         <div class="form-row-2">
           <div class="field">
-            <label>Date of Birth (13+)</label>
+            <label>Date of birth</label>
             <input class="input-control" id="su-bday" type="date" required max="${new Date().toISOString().slice(0, 10)}" value="${escapeHtml(signupDraft.birthday)}" />
-            <span class="field-hint">Keeps VYRO safe. VYRO Live is 18+ only.</span>
+            <span class="field-hint">You need to be 13 or over. Going live is for 18 and over.</span>
           </div>
           <div class="field">
-            <label>Recovery Phrase</label>
+            <label>Recovery phrase</label>
             <input class="input-control" id="su-rec" required minlength="4" value="${escapeHtml(signupDraft.recoveryHint)}" placeholder="Secret phrase to reset your password" />
             <span class="field-hint">Write it down. You need it if you forget your password.</span>
           </div>
         </div>
         <div class="field">
-          <label>Custom Status</label>
+          <label>Status</label>
           <input class="input-control" id="su-status" value="${escapeHtml(signupDraft.statusText)}" placeholder="e.g. Dropping snaps 📸" maxlength="80" />
         </div>
         <div class="field">
-          <label>Bio (Optional)</label>
-          <input class="input-control" id="su-bio" value="${escapeHtml(signupDraft.bio)}" placeholder="Tell your servers about you..." maxlength="180" />
+          <label>Bio (optional)</label>
+          <input class="input-control" id="su-bio" value="${escapeHtml(signupDraft.bio)}" placeholder="A line about you" maxlength="180" />
         </div>
         <div style="display:flex;gap:10px;">
-          <button type="button" class="btn btn-secondary" id="su-back-2">← Back</button>
-          <button type="button" class="btn btn-primary" id="su-next-2" style="flex:1;">Customize Avatar →</button>
+          <button type="button" class="btn btn-secondary" id="su-back-2">Back</button>
+          <button type="button" class="btn btn-primary" id="su-next-2" style="flex:1;">Next</button>
         </div>
       </div>
     `;
@@ -965,8 +934,8 @@ function renderSignupArea(area, root, onSignedIn) {
       </div>
 
       <div style="display:flex;gap:10px;">
-        <button type="button" class="btn btn-secondary" id="su-back-3">← Back</button>
-        <button type="button" class="btn btn-primary" id="su-finish" style="flex:1;">Create VYRO Account ⚡</button>
+        <button type="button" class="btn btn-secondary" id="su-back-3">Back</button>
+        <button type="button" class="btn btn-primary" id="su-finish" style="flex:1;">Create account</button>
       </div>
     </div>
   `;
@@ -1059,7 +1028,7 @@ function renderSignupArea(area, root, onSignedIn) {
     }
     const btn = stepBody.querySelector('#su-finish');
     btn.disabled = true;
-    btn.textContent = 'Launching VYRO...';
+    btn.textContent = 'Creating your account…';
     try {
       const res = await api('/api/auth/signup', {
         method: 'POST',
@@ -1086,7 +1055,7 @@ function renderSignupArea(area, root, onSignedIn) {
     } catch (err) {
       handleServerConnectionError(err, showErr, root, onSignedIn);
       btn.disabled = false;
-      btn.textContent = 'Create VYRO Account ⚡';
+      btn.textContent = 'Create account';
     }
   };
 }
@@ -1105,7 +1074,7 @@ async function renderDownloadView(container) {
         </div>
         <div class="auth-nav-actions">
           <button class="btn btn-secondary btn-sm" id="dl-login-btn">Log In</button>
-          <button class="btn btn-primary btn-sm" id="dl-signup-btn">Sign Up</button>
+          <button class="btn btn-primary btn-sm" id="dl-signup-btn">Sign up</button>
           ${
             window.vyroDesktop
               ? `<div class="tb-win-group">
@@ -1118,20 +1087,19 @@ async function renderDownloadView(container) {
         </div>
       </header>
       <div class="download-page-wrap">
-        <div class="auth-eyebrow">⚡ PC Desktop .exe + Universal Android .apk + GitHub Auto-Updates</div>
-        <h1 class="auth-headline" style="margin-top:14px;">Get <span class="grad">VYRO</span> Everywhere</h1>
+        <h1 class="auth-headline">Get VYRO on your computer and phone.</h1>
         <p class="auth-lead" style="margin-top:8px;">
-          Download the standalone Windows <strong>.exe</strong> or Universal Android <strong>.apk</strong> (Android 5.0–16+) directly, or scan the QR code to launch VYRO on iOS &amp; mobile web.
+          Download the Windows app or the Android app. On iPhone, scan the QR code to use VYRO in your browser.
         </p>
 
         <div class="download-cards" id="dl-cards-root">
           <div class="download-card">
-            <h3>🪟 Windows Desktop (.exe)</h3>
-            <p style="color:var(--text-secondary);font-size:13.5px;">Checking GitHub Releases &amp; local build artifacts...</p>
+            <h3>Windows</h3>
+            <p style="color:var(--text-secondary);font-size:13.5px;">Checking for the latest version…</p>
           </div>
           <div class="download-card">
-            <h3>📱 Mobile (iOS &amp; Android)</h3>
-            <p style="color:var(--text-secondary);font-size:13.5px;">Preparing mobile QR code &amp; PWA installer...</p>
+            <h3>Phone</h3>
+            <p style="color:var(--text-secondary);font-size:13.5px;">Getting your QR code ready…</p>
           </div>
         </div>
       </div>
@@ -1160,7 +1128,7 @@ async function renderDownloadView(container) {
     let upd;
     if (isApkUnconfigured()) {
       net = {
-        version: '1.1.0',
+        version: '1.2.0',
         lanUrls: [],
         githubOwner: 'moongames0101-cmyk',
         githubRepo: 'vyro',
@@ -1197,19 +1165,19 @@ async function renderDownloadView(container) {
     const cards = container.querySelector('#dl-cards-root');
     const mobileUrl = net.lanUrls?.[0]?.url || location.origin;
     const formatExeLabel = (name) =>
-      name.toLowerCase().includes('portable') ? `Portable .exe (v${escapeHtml(net.version)})` : `Windows Setup .exe (v${escapeHtml(net.version)})`;
+      name.toLowerCase().includes('portable') ? 'No-install version' : 'Download for Windows';
     const localExeSet = new Set(net.localExes || []);
     const localExeButtons = (net.localExes || [])
-      .map((exe) => `<a class="btn btn-primary" href="/downloads/${encodeURIComponent(exe)}" download title="${escapeHtml(exe)}">${ICONS.download} ${formatExeLabel(exe)}</a>`)
+      .map((exe) => `<a class="btn ${exe.toLowerCase().includes('portable') ? 'btn-secondary' : 'btn-primary'}" href="/downloads/${encodeURIComponent(exe)}" download title="${escapeHtml(exe)}">${ICONS.download} ${formatExeLabel(exe)}</a>`)
       .join('');
     const ghExeButtons = (upd.exeAssets || [])
       .filter((a) => !localExeSet.has(a.name))
-      .map((a) => `<a class="btn btn-primary" href="${escapeHtml(a.downloadUrl)}" target="_blank" rel="noopener" title="${escapeHtml(a.name)}">${ICONS.download} ${formatExeLabel(a.name)}</a>`)
+      .map((a) => `<a class="btn ${a.name.toLowerCase().includes('portable') ? 'btn-secondary' : 'btn-primary'}" href="${escapeHtml(a.downloadUrl)}" target="_blank" rel="noopener" title="${escapeHtml(a.name)}">${ICONS.download} ${formatExeLabel(a.name)}</a>`)
       .join('');
 
     const localApkSet = new Set(net.localApks || []);
     const localApkButtons = (net.localApks || [])
-      .map((apk) => `<a class="btn btn-primary" href="/downloads/${encodeURIComponent(apk)}" download title="${escapeHtml(apk)}">${ICONS.download} Android APK (v${escapeHtml(net.version)})</a>`)
+      .map((apk) => `<a class="btn btn-primary" href="/downloads/${encodeURIComponent(apk)}" download title="${escapeHtml(apk)}">${ICONS.download} Download for Android</a>`)
       .join('');
     const ghApkButtons = (upd.apkAssets || [])
       .filter((a) => !localApkSet.has(a.name))
@@ -1221,18 +1189,18 @@ async function renderDownloadView(container) {
         <div style="display:flex;align-items:center;gap:12px;">
           <img src="/assets/icon-192.png" width="44" height="44" style="border-radius:12px;" />
           <div>
-            <h3 style="font-size:18px;">Windows Desktop (.exe)</h3>
-            <span class="field-hint">Version v${escapeHtml(net.version)} • Auto-updates via GitHub Releases</span>
+            <h3>Windows</h3>
+            <span class="field-hint">Version ${escapeHtml(net.version)}. Updates itself.</span>
           </div>
         </div>
         <p style="color:var(--text-secondary);font-size:13px;">
-          Includes custom VYRO taskbar icon, native notifications, system tray, built-in server host, and automatic GitHub Release updates.
+          The full app, with notifications and a tray icon. New versions install themselves.
         </p>
         <div style="display:flex;flex-direction:column;gap:8px;">
           ${localExeButtons}
           ${ghExeButtons}
           <a class="btn btn-secondary" href="${escapeHtml(upd.releasesPage)}" target="_blank" rel="noopener">
-            🐙 Open GitHub Releases (${escapeHtml(net.githubOwner)}/${escapeHtml(net.githubRepo)})
+            All versions on GitHub
           </a>
         </div>
         <div class="field-hint">${escapeHtml(upd.message || 'Ready for GitHub Releases distribution.')}</div>
@@ -1240,37 +1208,36 @@ async function renderDownloadView(container) {
 
       <div class="download-card">
         <div style="display:flex;align-items:center;gap:12px;">
-          <div style="font-size:32px;">🤖</div>
+          <img src="/assets/icon-192.png" width="44" height="44" style="border-radius:12px;" />
           <div>
-            <h3 style="font-size:18px;">Android Mobile (.apk)</h3>
-            <span class="field-hint">Standalone App • Supports Android 5.0 through Android 16+</span>
+            <h3>Android</h3>
+            <span class="field-hint">Works on Android 5 and newer.</span>
           </div>
         </div>
         <p style="color:var(--text-secondary);font-size:13px;">
-          Direct download Android APK package. Install directly on any Android phone with native camera, microphone, snaps, and live server sync!
+          Download the app file and open it on your phone. If asked, allow your browser to install apps.
         </p>
         <div style="display:flex;flex-direction:column;gap:8px;">
-          ${localApkButtons || (!isApkMode() && !ghApkButtons ? `<a class="btn btn-primary" href="/downloads/VYRO.apk" download>${ICONS.download} Download VYRO.apk</a>` : '')}
+          ${localApkButtons || (!isApkMode() && !ghApkButtons ? `<a class="btn btn-primary" href="/downloads/VYRO.apk" download>${ICONS.download} Download for Android</a>` : '')}
           ${ghApkButtons}
           <a class="btn btn-secondary" href="https://github.com/${escapeHtml(net.githubOwner)}/${escapeHtml(net.githubRepo)}/releases" target="_blank" rel="noopener">
-            🤖 View Android APK on GitHub Releases
+            All versions on GitHub
           </a>
         </div>
       </div>
 
       <div class="download-card">
         <div>
-          <h3 style="font-size:18px;">📱 Mobile Web &amp; QR Sync</h3>
-          <span class="field-hint">Scan with your phone camera on Wi-Fi, or install on iPhone/iPad!</span>
+          <h3>iPhone and other phones</h3>
+          <span class="field-hint">Scan this with your phone's camera.</span>
         </div>
         <div class="qr-card">${renderQrSvg(mobileUrl, 176)}</div>
-        <div style="font-family:var(--font-mono);font-size:12px;text-align:center;color:var(--vyro-gold);word-break:break-all;">
+        <div style="font-size:13px;text-align:center;color:var(--mauve);word-break:break-all;">
           ${escapeHtml(mobileUrl)}
         </div>
-        ${state.deferredInstallPrompt ? `<button class="btn btn-primary" id="pwa-install-btn">📲 Install VYRO App on This Device</button>` : ''}
+        ${state.deferredInstallPrompt ? `<button class="btn btn-primary" id="pwa-install-btn">Install VYRO on this device</button>` : ''}
         <p class="field-hint">
-          iPhone Safari: Tap <strong>Share → Add to Home Screen</strong>.<br/>
-          Android: Download the <strong>.apk</strong> above or install in Chrome.
+          On iPhone, tap <strong>Share</strong>, then <strong>Add to Home Screen</strong>.
         </p>
       </div>
     `;

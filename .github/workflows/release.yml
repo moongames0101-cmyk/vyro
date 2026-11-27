@@ -44,7 +44,22 @@ jobs:
           $cfg.version = $pkg.version
           $cfg | ConvertTo-Json -Depth 5 | Set-Content vyro.config.json -Encoding UTF8
 
-      - name: Build Windows Installer & Portable EXE and Publish to GitHub Releases
+      - name: Build Windows Installer & Portable EXE
+        run: npx electron-builder --win nsis portable --x64 --publish never
+
+      # Upload everything to ONE release. (Letting electron-builder publish both builds at once
+      # made two releases with the same tag, which broke desktop auto-updates.)
+      - name: Publish to GitHub Releases
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --win nsis portable --x64 --publish always
+        run: |
+          shopt -s nullglob
+          test -f dist/latest.yml || { echo "dist/latest.yml is missing, so auto-update would break"; exit 1; }
+          files=(dist/*.exe dist/*.exe.blockmap dist/latest.yml)
+          tag="$GITHUB_REF_NAME"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "${files[@]}" --clobber
+          else
+            gh release create "$tag" "${files[@]}" --title "${tag#v}" --notes "VYRO ${tag#v}"
+          fi

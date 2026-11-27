@@ -30,7 +30,7 @@ export async function openSnapViewer(msg, { onSnapUpdated, onSnapBack }) {
             <div style="display:flex;align-items:center;gap:10px;">
               ${renderAvatarHtml(msg.author, 36)}
               <div>
-                <div style="font-weight:800;font-size:14px;">${escapeHtml(msg.author?.displayName || 'User')}</div>
+                <div style="font-weight:650;font-size:14px;">${escapeHtml(msg.author?.displayName || 'User')}</div>
                 <div style="font-size:11px;color:var(--text-secondary);">${formatTime(msg.createdAt)} • <span id="sv-countdown">${ttl}s</span></div>
               </div>
             </div>
@@ -144,7 +144,7 @@ export function openStoryViewer(groupIndex, groups, { onRefresh, onReplyDm }) {
             <div style="display:flex;align-items:center;gap:10px;">
               ${renderAvatarHtml(group.author, 36)}
               <div>
-                <div style="font-weight:800;font-size:14px;">${escapeHtml(group.author.displayName)}</div>
+                <div style="font-weight:650;font-size:14px;">${escapeHtml(group.author.displayName)}</div>
                 <div style="font-size:11px;color:var(--text-secondary);">24h Story • ${formatTime(story.createdAt)}</div>
               </div>
             </div>

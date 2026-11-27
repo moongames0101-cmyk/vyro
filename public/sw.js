@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vyro-shell-v1.1.0';
+const CACHE_NAME = 'vyro-shell-v1.2.0';
 const SHELL_ASSETS = [
   '/',
   '/index.html',

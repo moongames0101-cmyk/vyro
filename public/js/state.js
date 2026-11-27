@@ -45,12 +45,12 @@ export function toast(message, kind = 'info', durationMs = 3400) {
   if (!root) return;
   const el = document.createElement('div');
   el.className = `toast ${kind}`;
-  const icon = kind === 'success' ? '✅' : kind === 'error' ? '⚠️' : kind === 'snap' ? '⚡' : '💬';
-  el.innerHTML = `<span>${icon}</span><div style="flex:1;font-size:13px;font-weight:600;">${escapeHtml(message)}</div>`;
+  el.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+  el.innerHTML = `<div style="flex:1;">${escapeHtml(message)}</div>`;
   root.appendChild(el);
   setTimeout(() => {
     el.style.opacity = '0';
-    el.style.transform = 'translateX(16px)';
+    el.style.transform = 'translateY(-4px)';
     el.style.transition = 'all 0.18s ease';
     setTimeout(() => el.remove(), 200);
   }, durationMs);

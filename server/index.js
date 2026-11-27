@@ -27,6 +27,8 @@ const MIME_TYPES = {
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2',
+  '.bin': 'application/octet-stream',
   '.exe': 'application/octet-stream',
   '.apk': 'application/vnd.android.package-archive'
 };

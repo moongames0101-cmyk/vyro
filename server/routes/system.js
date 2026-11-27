@@ -48,7 +48,7 @@ async function handleSystemRoutes({ req, res, pathname, port, configPath, rootDi
     const cfg = loadConfig(configPath);
     const lanUrls = getLanAddresses(port);
     const distDir = path.join(rootDir, 'dist');
-    const ver = cfg.version || '1.1.0';
+    const ver = cfg.version || '1.2.0';
     let localExes = [];
     let localApks = [];
     try {
