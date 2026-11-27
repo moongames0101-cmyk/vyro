@@ -113,6 +113,9 @@ test('an online server gives its public address for phones, not its Wi-Fi ones',
 });
 
 // deploy/start.sh, with stand-ins for node and litestream that print what they were given.
+// It only ever runs on Linux (Render), so the Windows release build skips these.
+const needsShell = { skip: process.platform === 'win32' && 'start.sh runs on Linux only' };
+
 function runStartScript(env) {
   const binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vyro-bin-'));
   const dataDir = path.join(binDir, 'data');
@@ -133,7 +136,7 @@ function runStartScript(env) {
   }
 }
 
-test('start.sh runs VYRO under Litestream when the Backblaze settings are there', () => {
+test('start.sh runs VYRO under Litestream when the Backblaze settings are there', needsShell, () => {
   const out = runStartScript({
     VYRO_SECRET: 'x',
     BACKUP_BUCKET: 'vyro-backup',
@@ -146,7 +149,7 @@ test('start.sh runs VYRO under Litestream when the Backblaze settings are there'
   assert.doesNotMatch(out, /WARNING/);
 });
 
-test('start.sh still starts VYRO without backups, and says what will be lost', () => {
+test('start.sh still starts VYRO without backups, and says what will be lost', needsShell, () => {
   const out = runStartScript({ BACKUP_BUCKET: 'vyro-backup' });
   assert.match(out, /RAN node server\/index\.js/);
   assert.doesNotMatch(out, /RAN litestream/);
