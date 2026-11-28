@@ -9,7 +9,8 @@ import {
   isPrivateOrLocalHost,
   probeServerHealth,
   saveServerUrl,
-  setToken
+  setToken,
+  wakeServer
 } from './api.js';
 import { mountAuthPortal } from './components/AuthPortal.js';
 import { renderWorkspace } from './components/Workspace.js';
@@ -259,6 +260,8 @@ if (window.vyroDesktop?.onUpdateStatus) {
       }
     }
   }
+
+  await wakeServer(() => setBootMessage('Waking up VYRO online. This can take up to a minute.'));
 
   const token = getToken();
   if (token) {

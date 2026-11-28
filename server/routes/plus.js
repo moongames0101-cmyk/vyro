@@ -1,8 +1,9 @@
 // VYRO+ (£1.99/month): status, customisation, and purchase verification.
 //
 // Nobody gets VYRO+ unless a payment provider confirms a real, paid subscription:
-//   - Web / desktop: Stripe Checkout (card details never touch VYRO's server),
-//     cancel any time from the Stripe customer portal.
+//   - Web / desktop (and the GitHub Android app): Stripe Checkout, card details
+//     never touch VYRO's server. server/stripe.js sets Stripe up from one key.
+//     Cancel any time from the Stripe customer portal or link.com.
 //   - Google Play: Play Billing purchase tokens checked with the Google Play Developer API.
 //   - Galaxy Store / App Store: not switched on yet, so they refuse rather than guess.
 // Everything is switched off until the matching environment variables are set (see STORE-RELEASE.md).
@@ -25,6 +26,7 @@ const {
   PLUS_LABELS
 } = require('../auth');
 const { uid } = require('../db');
+const { ensureStripeSetup, stripeConfig, stripeApi } = require('../stripe');
 
 const PRICE_LABEL = '£1.99/month';
 const ANDROID_PACKAGE = process.env.VYRO_ANDROID_PACKAGE || 'app.vyro.chat';
@@ -32,12 +34,7 @@ const GOOGLE_PRODUCT_ID = process.env.VYRO_GOOGLE_PLUS_PRODUCT || 'vyro_plus_mon
 const GRACE_MS = 0;
 
 // ---------- configuration ----------
-function stripeConfig() {
-  const key = process.env.STRIPE_SECRET_KEY;
-  const price = process.env.STRIPE_PRICE_ID;
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-  return key && price && webhookSecret ? { key, price, webhookSecret } : null;
-}
+// Stripe: see server/stripe.js.
 
 let cachedServiceAccount;
 function googleServiceAccount() {
@@ -64,7 +61,9 @@ function accountRef(userId) {
 }
 
 function publicBaseUrl(req) {
-  if (process.env.VYRO_PUBLIC_URL) return process.env.VYRO_PUBLIC_URL.replace(/\/+$/, '');
+  // Render fills in RENDER_EXTERNAL_URL with the service's own https:// address.
+  const configured = process.env.VYRO_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL;
+  if (configured) return configured.replace(/\/+$/, '');
   const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() || 'http';
   return `${proto}://${req.headers.host || 'localhost'}`;
 }
@@ -209,24 +208,10 @@ function readGoogleSubscription(info) {
 }
 
 // ---------- Stripe (web and desktop) ----------
-async function stripeRequest(method, pathName, params) {
-  const cfg = stripeConfig();
+async function stripeRequest(db, method, pathName, params) {
+  const cfg = stripeConfig(db);
   if (!cfg) throw Object.assign(new Error('Card payments are not set up on this server yet.'), { statusCode: 501 });
-  const body = params ? new URLSearchParams(params).toString() : undefined;
-  const res = await fetch(`https://api.stripe.com${pathName}${method === 'GET' && body ? `?${body}` : ''}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${cfg.key}`,
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: method === 'GET' ? undefined : body
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const msg = (data.error && data.error.message) || 'The payment provider refused the request.';
-    throw Object.assign(new Error(msg), { statusCode: 502 });
-  }
-  return data;
+  return stripeApi(cfg.key, method, pathName, params);
 }
 
 function verifyStripeSignature(rawBody, header, secret, toleranceSec = 300) {
@@ -280,8 +265,9 @@ function applyStripeSubscription(db, wsHub, sub) {
     orderId: sub.latest_invoice && typeof sub.latest_invoice === 'string' ? sub.latest_invoice : '',
     entitled: STRIPE_ENTITLED.has(sub.status),
     expiresAt: periodEnd,
-    autoRenewing: !sub.cancel_at_period_end && sub.status !== 'canceled',
-    raw: { customer: sub.customer, status: sub.status, cancelAtPeriodEnd: Boolean(sub.cancel_at_period_end) }
+    // Newer Stripe versions can mark a cancellation with cancel_at instead.
+    autoRenewing: !sub.cancel_at_period_end && !sub.cancel_at && sub.status !== 'canceled',
+    raw: { customer: sub.customer, status: sub.status, cancelAtPeriodEnd: Boolean(sub.cancel_at_period_end || sub.cancel_at) }
   });
   recomputeUserPlus(db, wsHub, userId);
 }
@@ -304,7 +290,8 @@ function plusStatus(db, user) {
     accountRef: accountRef(user.id),
     googleProductId: GOOGLE_PRODUCT_ID,
     billing: {
-      card: Boolean(stripeConfig()),
+      card: Boolean(stripeConfig(db)),
+      cardSeller: stripeConfig(db)?.managed ? 'link' : 'vyro',
       cardInApk: process.env.VYRO_STRIPE_IN_APK === '1',
       google: Boolean(googleServiceAccount()),
       samsung: false,
@@ -312,7 +299,7 @@ function plusStatus(db, user) {
     },
     manage: {
       google: `https://play.google.com/store/account/subscriptions?sku=${encodeURIComponent(GOOGLE_PRODUCT_ID)}&package=${encodeURIComponent(ANDROID_PACKAGE)}`,
-      card: Boolean(stripeConfig()) && Boolean(latest && latest.store === 'stripe')
+      card: Boolean(stripeConfig(db)) && Boolean(latest && latest.store === 'stripe')
     },
     options: {
       nameColors: PLUS_NAME_COLORS,
@@ -330,7 +317,7 @@ async function handlePlusRoutes({ req, res, pathname, db, authUser, wsHub }) {
 
   // ----- webhooks (no user sign-in; verified by signature/secret instead) -----
   if (pathname === '/api/plus/stripe/webhook' && req.method === 'POST') {
-    const cfg = stripeConfig();
+    const cfg = stripeConfig(db);
     if (!cfg) return sendJson(res, 501, { error: 'Stripe is not set up.' });
     const raw = await readRawBody(req);
     if (!verifyStripeSignature(raw, req.headers['stripe-signature'], cfg.webhookSecret)) {
@@ -340,7 +327,7 @@ async function handlePlusRoutes({ req, res, pathname, db, authUser, wsHub }) {
     const obj = (event.data && event.data.object) || {};
     try {
       if (event.type === 'checkout.session.completed' && obj.subscription) {
-        const sub = await stripeRequest('GET', `/v1/subscriptions/${encodeURIComponent(obj.subscription)}`);
+        const sub = await stripeRequest(db, 'GET', `/v1/subscriptions/${encodeURIComponent(obj.subscription)}`);
         applyStripeSubscription(db, wsHub, sub);
       } else if (event.type && event.type.startsWith('customer.subscription.')) {
         applyStripeSubscription(db, wsHub, obj);
@@ -382,6 +369,7 @@ async function handlePlusRoutes({ req, res, pathname, db, authUser, wsHub }) {
   if (!authUser) return sendJson(res, 401, { error: 'Authentication required.' });
 
   if (pathname === '/api/plus/status' && req.method === 'GET') {
+    if (!stripeConfig(db)) ensureStripeSetup(db); // finishes in the background; waits a minute between tries
     const fresh = recomputeUserPlus(db, null, authUser.id) || authUser;
     return sendJson(res, 200, plusStatus(db, fresh));
   }
@@ -433,7 +421,7 @@ async function handlePlusRoutes({ req, res, pathname, db, authUser, wsHub }) {
 
   // Web / desktop: start a Stripe Checkout page. Stripe takes the card details, not VYRO.
   if (pathname === '/api/plus/checkout' && req.method === 'POST') {
-    const cfg = stripeConfig();
+    const cfg = stripeConfig(db) || ((await ensureStripeSetup(db)) && stripeConfig(db));
     if (!cfg) return sendJson(res, 501, { error: 'Card payments are not switched on yet.' });
     if (isPlusActive(authUser) && authUser.plus_source !== 'gift') {
       return sendJson(res, 409, { error: 'You already have VYRO+.' });
@@ -458,7 +446,20 @@ async function handlePlusRoutes({ req, res, pathname, db, authUser, wsHub }) {
     };
     if (customer) params.customer = customer;
     else if (authUser.email) params.customer_email = authUser.email;
-    const session = await stripeRequest('POST', '/v1/checkout/sessions', params);
+    // Stripe sells it as merchant of record: it charges and pays the right VAT
+    // everywhere, sends receipts, and handles refunds and disputes.
+    if (cfg.managed) params['managed_payments[enabled]'] = 'true';
+    let session;
+    try {
+      session = await stripeRequest(db, 'POST', '/v1/checkout/sessions', params);
+    } catch (err) {
+      if (cfg.managed && /managed.?payments/i.test(err.message)) {
+        console.error(`[VYRO+] Stripe refused Managed Payments: ${err.message}`);
+        console.error('[VYRO+] Turn it on in Stripe: Settings > Managed Payments. Or set STRIPE_MANAGED_PAYMENTS=0 to sell without it.');
+        return sendJson(res, 503, { error: 'Payments are not quite ready yet. Try again later.' });
+      }
+      throw err;
+    }
     return sendJson(res, 200, { url: session.url });
   }
 
@@ -469,10 +470,10 @@ async function handlePlusRoutes({ req, res, pathname, db, authUser, wsHub }) {
       .get(authUser.id);
     const customer = prior ? parseJson(prior.raw, {}).customer : '';
     if (!customer) return sendJson(res, 404, { error: 'No card subscription found for this account.' });
-    const session = await stripeRequest('POST', '/v1/billing_portal/sessions', {
-      customer,
-      return_url: `${publicBaseUrl(req)}/#/app`
-    });
+    const portalParams = { customer, return_url: `${publicBaseUrl(req)}/#/app` };
+    const portal = stripeConfig(db)?.portal;
+    if (portal) portalParams.configuration = portal;
+    const session = await stripeRequest(db, 'POST', '/v1/billing_portal/sessions', portalParams);
     return sendJson(res, 200, { url: session.url });
   }
 

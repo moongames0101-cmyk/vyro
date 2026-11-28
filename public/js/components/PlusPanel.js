@@ -76,7 +76,9 @@ export async function renderPlusPanel(body) {
     }
     if (st.billing.card) {
       return `<button class="btn btn-primary plus-cta" id="plus-buy-card">Subscribe for ${PLUS_PRICE}</button>
-        <div class="field-hint">Secure checkout by Stripe. VYRO never sees your card details.</div>`;
+        <div class="field-hint">${st.billing.cardSeller === 'link'
+          ? 'Secure checkout by Stripe. VYRO never sees your card details. Your bank statement will show LINK.COM* VYRO.'
+          : 'Secure checkout by Stripe. VYRO never sees your card details.'}</div>`;
     }
     return `<button class="btn btn-primary plus-cta" disabled>Coming soon</button>
       <div class="field-hint">Payments switch on when VYRO+ launches.</div>`;

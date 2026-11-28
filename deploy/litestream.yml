@@ -1,0 +1,27 @@
+# Keeps the online VYRO database safe.
+#
+# Render's free plan wipes the server's files whenever it restarts or goes to
+# sleep. Litestream copies every change to the database into a Backblaze B2
+# bucket about once a second, and deploy/start.sh brings the database back
+# from that bucket when the server starts up again.
+#
+# The ${...} values come from the environment variables set on Render.
+# deploy/start.sh fills in VYRO_DATA_DIR, BACKUP_ENDPOINT and BACKUP_REGION.
+
+dbs:
+  - path: ${VYRO_DATA_DIR}/vyro.db
+    replica:
+      type: s3
+      bucket: ${BACKUP_BUCKET}
+      path: vyro
+      endpoint: ${BACKUP_ENDPOINT}
+      region: ${BACKUP_REGION}
+      access-key-id: ${BACKUP_KEY_ID}
+      secret-access-key: ${BACKUP_APP_KEY}
+
+# Tidy the backup a little less often than the default (every 30 seconds) to
+# stay well inside Backblaze's free daily allowance of list requests.
+levels:
+  - interval: 1m
+  - interval: 10m
+  - interval: 1h

@@ -46,7 +46,9 @@ async function handleSystemRoutes({ req, res, pathname, port, configPath, rootDi
 
   if (pathname === '/api/network-info' && req.method === 'GET') {
     const cfg = loadConfig(configPath);
-    const lanUrls = getLanAddresses(port);
+    // An online server has one public address; its Wi-Fi addresses mean nothing to anyone else.
+    const publicUrl = String(process.env.VYRO_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/+$/, '');
+    const lanUrls = publicUrl ? [] : getLanAddresses(port);
     const distDir = path.join(rootDir, 'dist');
     const ver = cfg.version || '1.2.0';
     let localExes = [];
@@ -68,6 +70,7 @@ async function handleSystemRoutes({ req, res, pathname, port, configPath, rootDi
       version: cfg.version || '1.0.0',
       port,
       localUrl: `http://localhost:${port}`,
+      publicUrl,
       lanUrls,
       githubOwner: cfg.githubOwner,
       githubRepo: cfg.githubRepo,

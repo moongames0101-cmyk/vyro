@@ -2,10 +2,13 @@ import {
   api,
   discoverLanServers,
   getApkLocalIps,
+  getDefaultServerUrl,
   getSavedAccounts,
   getServerUrl,
   isApkMode,
   isApkUnconfigured,
+  isLanUrl,
+  isUsingDefaultServer,
   normalizeServerUrl,
   probeServerHealth,
   removeSavedAccount,
@@ -83,7 +86,7 @@ function renderApkConnectHtml() {
     return `
       <div class="apk-connect-panel connected">
         <div class="apk-connect-header">
-          <span class="apk-connect-badge"><span class="apk-connect-dot"></span> Server: ${escapeHtml(serverUrl)}</span>
+          <span class="apk-connect-badge"><span class="apk-connect-dot"></span> Server: ${isUsingDefaultServer() ? 'VYRO online' : escapeHtml(serverUrl)}</span>
           <button type="button" class="btn btn-secondary btn-sm" id="apk-change-srv-btn">Switch</button>
         </div>
       </div>
@@ -97,8 +100,13 @@ function renderApkConnectHtml() {
         ${serverUrl ? '<button type="button" class="btn-ghost btn-sm" id="apk-hide-srv-btn">Done</button>' : ''}
       </div>
       <div class="field-hint" style="line-height:1.45;">
-        Keep VYRO running on your PC (same Wi-Fi) and tap <strong>Scan Wi-Fi</strong>, or enter your PC / hosted VYRO server URL.
+        ${getDefaultServerUrl()
+          ? 'VYRO online works from anywhere. To use VYRO running on your PC instead, keep it open on the same Wi-Fi and tap <strong>Scan Wi-Fi</strong>, or enter its address.'
+          : 'Keep VYRO running on your PC (same Wi-Fi) and tap <strong>Scan Wi-Fi</strong>, or enter your PC / hosted VYRO server URL.'}
       </div>
+      ${getDefaultServerUrl() && !isUsingDefaultServer()
+        ? '<button type="button" class="btn btn-secondary btn-sm" id="apk-use-online-btn">Use VYRO online</button>'
+        : ''}
       ${apkConnectUi.error ? `<div class="auth-error-banner" style="margin:0;">${escapeHtml(apkConnectUi.error)}</div>` : ''}
       ${
         apkConnectUi.discovered.length
@@ -112,7 +120,7 @@ function renderApkConnectHtml() {
           : ''
       }
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <input class="input-control" id="apk-server-input" style="flex:1;min-width:170px;padding:8px 10px;font-size:12.5px;" placeholder="192.168.0.x:3847 or https://..." value="${escapeHtml(serverUrl)}" />
+        <input class="input-control" id="apk-server-input" style="flex:1;min-width:170px;padding:8px 10px;font-size:12.5px;" placeholder="192.168.0.x:3847 or https://..." value="${escapeHtml(isUsingDefaultServer() ? '' : serverUrl)}" />
         <button type="button" class="btn btn-primary btn-sm" id="apk-connect-btn">Connect</button>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -161,7 +169,7 @@ function wireApkConnectHandlers(container, onSignedIn) {
       btn.disabled = true;
       btn.textContent = 'Connecting...';
     }
-    const probe = await probeServerHealth(check.url, 3000);
+    const probe = await probeServerHealth(check.url, isLanUrl(check.url) ? 3000 : 20000);
     if (!probe.ok) {
       apkConnectUi.error = probe.error;
       refreshApkConnectSlot(container, onSignedIn);
@@ -170,9 +178,13 @@ function wireApkConnectHandlers(container, onSignedIn) {
     await saveServerUrl(probe.url);
     apkConnectUi.expanded = false;
     apkConnectUi.error = '';
-    toast(`Connected to VYRO at ${probe.url}`, 'success');
+    toast(isUsingDefaultServer() ? 'Connected to VYRO online' : `Connected to VYRO at ${probe.url}`, 'success');
     refreshApkConnectSlot(container, onSignedIn);
   };
+
+  slot.querySelector('#apk-use-online-btn')?.addEventListener('click', () => {
+    connectToUrl(getDefaultServerUrl());
+  });
 
   slot.querySelector('#apk-connect-btn')?.addEventListener('click', () => {
     const val = slot.querySelector('#apk-server-input')?.value || '';
@@ -292,11 +304,11 @@ export async function mountAuthPortal(container, onSignedIn) {
             !isApkMode()
               ? `<div class="server-node-footer">
                   <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--text-muted);gap:8px;flex-wrap:wrap;">
-                    <span>Server: <strong style="color:var(--text-secondary);font-weight:500;">${escapeHtml(getServerUrl() || location.origin)}</strong></span>
+                    <span>Server: <strong style="color:var(--text-secondary);font-weight:500;">${isUsingDefaultServer() ? 'VYRO online' : escapeHtml(getServerUrl() || location.origin)}</strong></span>
                     <button type="button" class="btn-ghost btn-sm" id="toggle-server-node">Change</button>
                   </div>
                   <div id="server-node-editor" class="hidden" style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;">
-                    <input class="input-control" id="custom-server-input" placeholder="192.168.0.x:3847 or https://... (blank = local)" value="${escapeHtml(getServerUrl())}" style="flex:1;min-width:160px;padding:8px 10px;font-size:12.5px;" />
+                    <input class="input-control" id="custom-server-input" placeholder="192.168.0.x:3847 or https://... (blank = ${getDefaultServerUrl() ? 'VYRO online' : 'local'})" value="${escapeHtml(isUsingDefaultServer() ? '' : getServerUrl())}" style="flex:1;min-width:160px;padding:8px 10px;font-size:12.5px;" />
                     <button type="button" class="btn btn-secondary btn-sm" id="save-server-btn">Connect</button>
                   </div>
                 </div>`
@@ -351,7 +363,7 @@ export async function mountAuthPortal(container, onSignedIn) {
       const val = container.querySelector('#custom-server-input').value.trim();
       if (!val) {
         await saveServerUrl('');
-        toast('Using local VYRO server', 'success');
+        toast(getDefaultServerUrl() ? 'Using VYRO online' : 'Using local VYRO server', 'success');
         mountAuthPortal(container, onSignedIn);
         return;
       }
@@ -362,7 +374,7 @@ export async function mountAuthPortal(container, onSignedIn) {
       }
       saveSrvBtn.disabled = true;
       saveSrvBtn.textContent = 'Checking...';
-      const probe = await probeServerHealth(check.url, 3000);
+      const probe = await probeServerHealth(check.url, isLanUrl(check.url) ? 3000 : 20000);
       if (!probe.ok) {
         saveSrvBtn.disabled = false;
         saveSrvBtn.textContent = 'Connect';
@@ -1163,7 +1175,7 @@ async function renderDownloadView(container) {
     }
     networkInfoCache = { net, upd };
     const cards = container.querySelector('#dl-cards-root');
-    const mobileUrl = net.lanUrls?.[0]?.url || location.origin;
+    const mobileUrl = net.publicUrl || net.lanUrls?.[0]?.url || location.origin;
     const formatExeLabel = (name) =>
       name.toLowerCase().includes('portable') ? 'No-install version' : 'Download for Windows';
     const localExeSet = new Set(net.localExes || []);

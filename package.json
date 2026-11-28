@@ -6,7 +6,7 @@
   "main": "electron/main.js",
   "scripts": {
     "start": "node server/index.js",
-    "test": "node --test tests/api.test.js tests/security.test.js",
+    "test": "node --test tests/api.test.js tests/security.test.js tests/online.test.js tests/stripe.test.js",
     "desktop": "electron .",
     "build:exe": "electron-builder --win nsis portable --x64",
     "build:apk": "node scripts/build-android.js",

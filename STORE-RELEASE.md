@@ -52,28 +52,29 @@ The old signing password (`vyroapp123`) was written in the code, and the code is
 
 Note: people who installed the old APK have to uninstall it once before installing the new one, because the key changed.
 
-## 3. Turn on VYRO+ card payments (web and desktop)
+## 3. Turn on VYRO+ card payments
 
-Stripe handles the payment pages, so card details never touch your server. Subscribers can cancel any time from a "Manage or cancel" button.
+Stripe sells VYRO+ for you using **Managed Payments**: Stripe is the seller, so it charges and pays the right VAT in every country, sends receipts, and deals with refunds and disputes. Card details never touch your server. Subscribers cancel any time from the "Manage or cancel" button or at link.com. Their bank statement shows `LINK.COM*` and your statement name.
 
-1. Create a Stripe account at stripe.com and finish the business details.
-2. In Stripe, go to **Product catalogue → Add product**. Name it "VYRO+" and set the price to **£1.99, recurring, monthly**. Copy the **price ID** (it starts with `price_`).
-3. Go to **Developers → API keys** and copy the **secret key** (it starts with `sk_`).
-4. Go to **Developers → Webhooks → Add endpoint**.
-   - URL: `https://YOUR-VYRO-SITE/api/plus/stripe/webhook`
-   - Events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`
-   - Copy the **signing secret** (it starts with `whsec_`).
-5. Go to **Settings → Billing → Customer portal** and switch on **cancel subscriptions**.
-6. On Render, add these settings:
-   - `STRIPE_SECRET_KEY` = the `sk_` key
-   - `STRIPE_PRICE_ID` = the `price_` ID
-   - `STRIPE_WEBHOOK_SECRET` = the `whsec_` secret
-   - `VYRO_PUBLIC_URL` = your site address, e.g. `https://vyro-chat.onrender.com`
-7. Test it with Stripe's **test mode** keys first. Use the test card `4242 4242 4242 4242`.
+Stripe costs nothing until someone pays. Then it takes its card fee, 0.7% for subscriptions and 3.5% for Managed Payments. VAT also comes out of the £1.99.
 
-Never paste these keys into a chat, an email or GitHub. Only put them in Render's Environment page.
+The online server (Render) has to be running first, because Stripe sends its payment confirmations there.
 
-Card payments only appear on the website and the desktop app. Google Play and the Galaxy Store require their own billing for subscriptions inside the phone app. Until that billing is switched on, the phone app shows "Coming soon".
+1. Sign up at stripe.com as an **individual / sole trader**. Set the business name and the statement name to **VYRO**, and add a support email.
+2. Go to **Settings → Managed Payments**, switch it on and accept the terms.
+3. Go to **Developers → API keys** and copy the **secret key**. Start in a sandbox or test mode (`sk_test_…`).
+4. On Render, open the VYRO service → **Environment**, set `STRIPE_SECRET_KEY` to that key and save.
+
+That's all. When it restarts, the server makes the VYRO+ product and its £1.99 monthly price (VAT included), the webhook, and the cancel page itself. The log says `[VYRO+] Stripe is ready`. If it says `Stripe setup failed`, the line after it says why.
+
+5. Try it with the test card `4242 4242 4242 4242`, any future date and any CVC. VYRO+ should switch on within a few seconds. Then cancel it from "Manage or cancel".
+6. When it works, swap in the live key (`sk_live_…`). The server sets up live mode the same way.
+
+Never paste the key into a chat, an email or GitHub. Only put it in Render's Environment page.
+
+To sell without Managed Payments (you handle VAT yourself), set `STRIPE_MANAGED_PAYMENTS` to `0`. If you already made a price and webhook by hand, `STRIPE_PRICE_ID` and `STRIPE_WEBHOOK_SECRET` still work and take priority.
+
+Card payments show on the website, the desktop app and the Android app from GitHub (`VYRO_STRIPE_IN_APK=1`). A Google Play build has to use Google's own billing instead, so set `VYRO_STRIPE_IN_APK` to `0` for that.
 
 ## 4. Galaxy Store (free)
 
