@@ -4,6 +4,10 @@
   <p><strong>Where Discord Servers &amp; Voice Lounges Meet Snapchat Snaps, Streaks &amp; 24h Stories.</strong></p>
 </div>
 
+VYRO is a free chat app for Windows, Android and the web. Message friends, send snaps that disappear, hang out in voice and go live (18+).
+
+**VYRO+** is an optional subscription for **£1.99 a month**. It adds extra looks to your profile: name colours, effects, fonts, themes and borders. Cancel any time from inside the app. Payments are handled by Stripe.
+
 ---
 
 ## Features
