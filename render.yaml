@@ -28,12 +28,9 @@ services:
       # Face age scan before going live: estimate needed to pass (default 18). Set VYRO_FACE_CHECK to off to disable.
       - key: VYRO_FACE_MIN_AGE
         value: 18
-      # VYRO+ card payments (Stripe) - leave empty until you are ready
+      # VYRO+ payments: just the Stripe secret key. The server sets up the rest
+      # in Stripe itself (see STORE-RELEASE.md). Leave empty until you're ready.
       - key: STRIPE_SECRET_KEY
-        sync: false
-      - key: STRIPE_PRICE_ID
-        sync: false
-      - key: STRIPE_WEBHOOK_SECRET
         sync: false
       # Lets the Android app from GitHub take card payments too. Set it to 0 for a
       # Google Play build: Play only allows its own billing for in-app purchases.

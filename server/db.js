@@ -192,6 +192,13 @@ function migrateSchema(db) {
     );
     CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
 
+    -- Things the server sets up for itself, such as the Stripe price and webhook for VYRO+.
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS reports (
       id TEXT PRIMARY KEY,
       reporter_id TEXT NOT NULL,

@@ -13,6 +13,7 @@ const { handleMessageRoutes } = require('./routes/messages');
 const { handleStoryRoutes } = require('./routes/stories');
 const { handleSystemRoutes } = require('./routes/system');
 const { handlePlusRoutes } = require('./routes/plus');
+const { ensureStripeSetup } = require('./stripe');
 const { handleLiveRoutes } = require('./routes/live');
 
 const MIME_TYPES = {
@@ -199,6 +200,8 @@ function createVyroServer(options = {}) {
         server.once('error', reject);
         server.listen(port, host, () => {
           const addr = server.address();
+          // With STRIPE_SECRET_KEY set, get VYRO+ payments ready in the background.
+          ensureStripeSetup(db);
           resolve({ port: addr.port, host: addr.address, dataDir });
         });
       });
